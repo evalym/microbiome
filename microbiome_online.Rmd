@@ -1,0 +1,430 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Combining 2 dat asets
+
+ps_merge <- merge_phyloseq(pseq, atlas1006)
+
+ get_variable(batmicrobiome,""LATITUDE"" )
+ 
+ get_variable(batmicrobiome,"LONGITUDE" )
+ 
+sample_data(batmicrobiome)
+ 
+sample_names(batmicrobiome)
+
+batmicrobiome[LONGITUDE] <- sample(50:1000)
+
+sample_data(atlas1006)$human = factor( get_variable(atlas1006) %in% c("Feces", "Mock", "Skin", "Tongue") )
+
+sample_data(atlas1006)$human = sample(50:1000)
+
+sample_data(atlas1006)$human = rep(3,1151) %%% THIS WORKS !!!!
+
+
+sample_data(atlas1006)$LATITUDE = rep(17,1151)
+sample_data(atlas1006)$LONGITUDE = rep(-77,1151) 
+get_variable(atlas1006,"LATITUDE" )
+map_phyloseq(atlas1006)
+
+map_phyloseq(batmicrobiome)
+
+rep(3,12)
+
+devtools::install_github("UrbanInstitute/urbnmapr")
+
+atlas1006
+
+sample_variables(atlas1006)
+
+sample_variables(batmicrobiome)[56]  THIS WORKS
+
+batmicrobiome = sample_data(data.frame(
+  LONGITUDE = sample(50:1000)))
+  
+  
+    sampledata = sample_data(data.frame(
+  Location = sample(LETTERS[1:4], size=nsamples(physeq), replace=TRUE),
+  Depth = sample(50:1000, size=nsamples(physeq), replace=TRUE),
+  row.names=sample_names(physeq),
+  stringsAsFactors=FALSE
+  
+  sampledata = sample_data(data.frame(
+  Location = sample(LETTERS[1:4], size=nsamples(physeq), replace=TRUE),
+  Depth = sample(50:1000, size=nsamples(physeq), replace=TRUE),
+  row.names=sample_names(physeq),
+  stringsAsFactors=FALSE
+))
+
+
+
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+	setwd("/omega/bashscripts") 
+
+	## Get data
+	library(foreign)
+	library(stargazer)
+	library(psych)
+	library(plyr)
+	library(xtable)
+	library(car)
+	#library(dplyr)
+	library(scales)
+	library(reshape) 
+	library(gmodels)
+	library(nnet)
+	library(tidyr)
+	library(sjmisc)
+	library(RColorBrewer)
+  library(htmltools)
+	library(broom)
+
+library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+
+library(phyloseq)
+library(microbiome)
+library(knitr)
+library(ggpubr)
+
+library(phylogeo)
+
+data(atlas1006)   
+# Rename the example data (which is a phyloseq object)
+pseq <- atlas1006
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+```{r}
+tab <- global(pseq, index = "all")
+stargazer(tab, type = "text")
+
+```
+
+
+```{r}
+####### Alpha diversity #######
+ps1 <- prune_taxa(taxa_sums(pseq) > 0, pseq)
+tab <- diversities(ps1, index = "all")
+stargazer(tab, type = "text",summary = NULL)
+kable(head(tab))
+```
+
+```{r}
+#  Prepare data for vizualisation
+ps1.meta <- meta(ps1)
+kable(head(ps1.meta))
+
+stargazer(ps1.meta, type = "text",summary = NULL)
+# Add the diversity table to metadata
+ps1.meta$Shannon <- tab$shannon 
+ps1.meta$InverseSimpson <- tab$inverse_simpson
+
+# Compare differences in Shannon index between bmi group of the study subjects
+
+# create a list of pairwise comparisons
+bmi <- levels(ps1.meta$bmi_group) # get the variables
+
+# make a pairwise list that we want to compare.
+bmi.pairs <- combn(seq_along(bmi), 2, simplify = FALSE, FUN = function(i)bmi[i])
+
+print(bmi.pairs)
+```
+
+
+```{r}
+# CREATING VIOLIN PLOT
+# the number in the palettes must equal the number of groups in bmi.pairs
+p1 <- ggviolin(ps1.meta, x = "bmi_group", y = "Shannon",
+ add = "boxplot", fill = "bmi_group", palette = c("#a6cee3", "#b2df8a", "#fdbf6f","#a6cee3", "#b2df8a", "#fdbf6f")) # 
+print(p1)
+```
+
+
+
+```{r}
+
+# Pairwise comparision using non-parametric test (Wilcoxon test).
+p1 <- p1 + stat_compare_means(comparisons = bmi.pairs) 
+print(p1)
+```
+
+
+```{r}
+####### RICHNESS #######
+
+tab <- richness(pseq)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+
+
+
+```{r}
+###### DOMINANCE #####
+
+# The dominance index refers to the abundance of the most abundant species. Various dominance indices are available (see the function help for a list of options). 
+
+
+# Absolute abundances for the single most abundant taxa in each sample
+tab <- dominance(pseq, index = "all")
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+
+
+```{r}
+######### RARENESS and low abundance ######
+
+tab <- rarity(pseq, index = "all")
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+```
+
+```{r}
+#### COVERAGE 
+
+# The coverage index gives the number of groups needed to have a given proportion of the ecosystem occupied (by default 0.5 ie 50%).
+
+tab <- coverage(pseq, threshold = 0.5)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+```
+
+
+```{r}
+#### ABUNDANCE 
+
+# The core_abundance function refers to the relative proportion of the core species. Non-core abundance provides the complement (1-x; see noncore_abundance).
+
+tab <- core_abundance(pseq, detection = .1/100, prevalence = 50/100)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+
+```{r}
+##### GINI INDEX
+
+#Gini index is a common measure for inequality in economical income. The inverse gini index (1/x) can also be used as a community diversity measure.
+
+tab <- inequality(pseq)
+kable(head(tab))
+plot(tab)
+```
+
+```{r}
+###### EVENNESS
+
+# Various evenness measures are also available.
+
+tab <- evenness(pseq, "all")
+kable(head(tab))
+plot(tab)
+```
+
+MICROBIOME COMPOSITION 
+
+
+```{r}
+# Just use prevalent taxa to speed up examples
+# (not absolute counts used in this example)
+
+# Pick sample subset
+library(phyloseq)
+
+library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+library(dplyr)
+library(microbiome)
+
+
+######## THIS ALTERED THE CORE DATA ###############
+#pseq <- core(atlas1006, detection = 10^3, prevalence = 95/100)
+#pseq2 <- subset_samples(pseq, group == "DI" & nationality == "AFR" & timepoint.within.group == 1)
+
+# Try another theme
+# from https://github.com/hrbrmstr/hrbrthemes
+
+# Limit the analysis on core taxa and specific sample group
+p <- plot_composition(pseq,
+              taxonomic.level = "OTU",
+                      sample.sort = "nationality",
+                      x.label = "nationality") +
+     guides(fill = guide_legend(ncol = 1)) +
+     scale_y_percent() +
+     labs(x = "Samples", y = "Relative abundance (%)",
+                                   title = "Relative abundance data",
+                                   subtitle = "Subtitle",
+                                   caption = "Caption text.") + 
+     theme_ipsum(grid="Y")
+print(p)  
+
+# Averaged by group
+p <- plot_composition(pseq,
+                      average_by = "bmi_group", transform = "compositional")
+print(p)
+
+
+```
+
+
+```{r}
+tmp <- plot_composition(pseq, plot.type = "heatmap", transform = "compositional", 
+            sample.sort = "neatmap", otu.sort = "neatmap", mar = c(6, 13, 1, 1))
+
+print(tmp)
+```
+
+
+
+
+
+PLOTTING TAXA Prevlence 
+
+```{r}
+data(atlas1006)
+
+# Use sample and taxa subset to speed up example
+p0 <- subset_samples(atlas1006, DNA_extraction_method == "r")
+
+# Define detection and prevalence thresholds to filter out rare taxa
+p0 <- core(p0, detection = 10, prevalence = 0)
+
+# For the available taxonomic levels
+plot_taxa_prevalence(p0, "Phylum", detection = 10)
+```
+
+
+PLOTTING RELAVANCE ABUNDANCE
+
+```{r}
+
+library(phyloseq)
+ps2 <- data(atlas1006)
+# for example purpose we will remove samples with less than 10000
+ps2 = prune_samples(sample_sums(ps1)>=2000, ps1)
+
+# To speed up the example we will use only those OTUs that are detected 100 times and present in 50% of the samples.
+
+pseq2 <- microbiome::core(ps2, detection = 100, prevalence = .5)
+
+# Improve the plotting MODIFIED 
+tax_table(pseq2)[tax_table(pseq2)[,"Phylum"]== "Clostridium", "Phylum" ] <- "Clostridium Phylum"
+
+# We will also remove the "f__" patterns for cleaner labels
+tax_table(pseq2)[,colnames(tax_table(pseq2))] <- gsub(tax_table(pseq2)[,colnames(tax_table(pseq2))],pattern="[a-z]__",replacement="")
+
+# merge at family level.
+
+pseq.fam <- aggregate_taxa(pseq2, "Phylum")
+
+p.fam <- plot_composition(pseq.fam, sample.sort = NULL, otu.sort = NULL,
+  x.label = "ibd_subtype", plot.type = "barplot", verbose = FALSE)
+
+print(p.fam)
+
+```
+
+
+PLOTTING RELTIVE ABUNDANCE
+
+```{r}
+
+### REQUIREDS THE DATA FROM ABOVE 
+pseq.famrel <- transform(pseq.fam, "compositional")
+
+p.famrel <- plot_composition(pseq.famrel, sample.sort = NULL, otu.sort = NULL,
+  x.label = "ibd_subtype", plot.type = "barplot", verbose = FALSE)
+
+print(p.famrel)
+
+# further improvements can be done as follows  
+
+p.famrel <- plot_composition(pseq.famrel, 
+                             sample.sort = NULL, 
+                             otu.sort = NULL, 
+                             x.label = "ibd_subtype", 
+                             plot.type = "barplot", 
+                             verbose = FALSE) + 
+  guides(fill = guide_legend(ncol = 1)) + 
+  scale_y_percent() + 
+  labs(x = "Samples", 
+       y = "Relative abundance (%)",
+       title = "Relative abundance data", 
+       subtitle = "Subtitle",
+       caption = "Caption text.") + 
+     theme_ipsum(grid="Y")
+
+print(p.famrel)
+```
+
+HEAT MAP
+
+```{r}
+pseq.famlog <- transform(pseq.fam, "log10")
+
+p.famrel.heatmap <- plot_composition(pseq.famlog, 
+                             sample.sort = NULL, 
+                             otu.sort = NULL, 
+                             x.label = "ibd_subtype", 
+                             plot.type = "heatmap", 
+                             verbose = FALSE)
+
+print(p.famrel.heatmap)
+```
+
+Plot taxa prevalence
+
+```{r}
+
+library(microbiome)
+data(peerj32)
+
+# Rename the data
+pseq <- peerj32$phyloseq
+
+# Calculate compositional version of the data
+# (relative abundances)
+pseq.rel <- microbiome::transform(pseq, "compositional")
+
+
+core.taxa.standard <- core_members(pseq.rel, detection = 0, prevalence = 50/100)
+
+
+```
+
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(phylogeo)
+
+data(mountainsoil)
+
+```
+
+
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
