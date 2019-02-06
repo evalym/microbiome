@@ -15,46 +15,644 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
+```{r data set-up}
 
+setwd("/Users/rezahaji-dehabadi/scripts/workspace") 
+
+	## Get data
+	library(foreign)
+	library(stargazer)
+	library(psych)
+	library(plyr)
+	library(xtable)
+	library(car)
+	#library(dplyr)
+	library(scales)
+	library(reshape) 
+	library(gmodels)
+	library(nnet)
+	library(tidyr)
+	library(sjmisc)
+	library(RColorBrewer)
+  library(htmltools)
+	library(broom)
+
+library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+library(gdtools)
+library(phyloseq)
 library(microbiome)
 library(knitr)
 library(ggpubr)
+
+library(phylogeo)
 library(dplyr)
 
 # Data from http://dx.doi.org/10.1038/ncomms7342
 data(atlas1006)   
+
 # Rename the example data (which is a phyloseq object)
 pseq <- atlas1006
 
-data(dietswap)  
-pseqds <- dietswap
-print(dietswap)
-
 
 ```
 
-## Including Plots
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
 
-You can also embed plots, for example:
+```{r summary}
 
-```{r pressure, echo=FALSE}
+# Summarise contents of phyloseq
+summarize_phyloseq(pseq)
+
+```
+
+
+
+```{r alpha diversity}
+
+# Alpha diversity
+ps1 <- prune_taxa(taxa_sums(pseq) > 0, pseq)
+tab <- diversities(ps1, index = "all")
+stargazer(tab, type = "text",summary = NULL)
+kable(head(tab))
+plot(tab)
+
+```
+
+
+```{r richness}
 
 # Richness
-tab2 <- richness(pseqds)
-kable(head(tab2))
+tab <- richness(pseq)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
 
 ```
-
 
 ou can also embed plots, for example:
 
-```{r , echo=FALSE}
+```{r abundance}
 
-# Richness
-tab2 <- richness(pseqds)
-kable(head(tab2))
+# Abundance table
+
+# Absolute abundances for the single most abundant taxa in each sample
+tab <- dominance(pseq, index = "all")
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+
+# Abunance histogram
+
+# Visualize population densities for specific taxa
+plot_density(pseq, "Dialister") + ggtitle("Absolute abundance")
+
+# Same with log10 compositional abundances
+x <- microbiome::transform(pseq, "compositional")
+tax <- "Dialister"
+plot_density(x, tax, log10 = TRUE) +
+  ggtitle("Relative abundance") +
+  xlab("Relative abundance (%)")
+
+
+```
+```{r dominance}
+
+dominance(pseq, index = "all", rank = 1, relative = TRUE, aggregate = TRUE)
 
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r rarity and low abundance}
+
+# Rarity and low abundance
+tab <- rarity(pseq, index = "all")
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+```{r core abundance}
+
+# Core abundance
+# relative proportion of the core species
+tab <- core_abundance(pseq, detection = 0.1/100, prevalence = 50/100)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+
+```{r gini index}
+
+# Gini index
+# measure for relative inequality in economical income
+# measures community diversity
+# Gini index is between 0-1
+# increasing gini index implies increasing inequality
+tab <- inequality(pseq)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+```{r evenness}
+
+# Evenness
+tab <- evenness(pseq, "all", zeroes = TRUE)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+```
+```{r prepare data for visualisation}
+
+# Prepare data for vizualisation
+
+# Get metadata
+ps1.meta <- meta(ps1)
+kable(head(ps1.meta))
+stargazer(ps1.meta, type = "text",summary = NULL)
+
+# Add the diversity table to metadata
+ps1.meta$Shannon <- tab$shannon 
+ps1.meta$InverseSimpson <- tab$inverse_simpson
+
+
+# Compare differences in Shannon index between bmi group of the study subjects
+
+# Create a list of pairwise comaprisons
+bmi <- levels(ps1.meta$bmi_group) # get the variables
+
+# Make a pairwise list that we want to compare.
+bmi.pairs <- combn(seq_along(bmi), 2, simplify = FALSE, FUN = function(i)bmi[i])
+
+print(bmi.pairs)
+
+
+```
+
+```{r violin plot}
+
+# Violin plot
+p1 <- ggviolin(ps1.meta, x = "bmi_group", y = "Shannon",
+ add = "boxplot", fill = "bmi_group", palette = c("#a6cee3", "#b2df8a", "#fdbf6f","#a6cee3", "#b2df8a", "#fdbf6f")) 
+
+print(p1)
+
+
+```
+
+```{r add mean comparison p-values to a ggplot}
+
+# Add mean comparison p-values to a ggplot
+p1 <- p1 + stat_compare_means(comparisons = bmi.pairs) 
+print(p1)
+
+```
+# https://rpkgs.datanovia.com/ggpubr/index.html
+# Package for elegant data visualization in R
+
+```{r coverage}
+
+# Coverage
+
+# The coverage index gives the number of groups needed to have a given proportion of the ecosystem occupied (by default 0.5 ie 50%).
+
+tab <- coverage(pseq, threshold = 0.5)
+kable(head(tab))
+stargazer(tab, type = "text",summary = NULL)
+plot(tab)
+
+
+```
+
+
+MICROBIOME COMPOSITION 
+
+```{r composition}
+
+# Just use prevalent taxa to speed up examples
+# (not absolute counts used in this example)
+
+# Pick sample subset
+library(phyloseq)
+
+library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+library(dplyr)
+library(microbiome)
+
+
+######## THIS ALTERED THE CORE DATA ###############
+#pseq <- core(atlas1006, detection = 10^3, prevalence = 95/100)
+#pseq2 <- subset_samples(pseq, group == "DI" & nationality == "AFR" & timepoint.within.group == 1)
+
+# Try another theme
+# from https://github.com/hrbrmstr/hrbrthemes
+
+# Limit the analysis on core taxa and specific sample group
+p <- plot_composition(pseq,
+              taxonomic.level = "OTU",
+                      sample.sort = "nationality",
+                      x.label = "nationality") +
+     guides(fill = guide_legend(ncol = 1)) +
+     scale_y_percent() +
+     labs(x = "Samples", y = "Relative abundance (%)",
+                                   title = "Relative abundance data",
+                                   subtitle = "Subtitle",
+                                   caption = "Caption text.") + 
+     theme_ipsum(grid="Y")
+print(p)  
+
+# Averaged by group
+p <- plot_composition(pseq,
+                      average_by = "bmi_group", transform = "compositional")
+print(p)
+
+
+```
+```{r composition heatmap}
+
+# Composition heatmap
+tmp <- plot_composition(pseq, plot.type = "heatmap", transform = "compositional", 
+            sample.sort = "neatmap", otu.sort = "neatmap", mar = c(6, 13, 1, 1))
+
+print(tmp)
+
+```
+
+```{r plot taxa prevalence}
+
+# Plot taxa prevalence
+# overview of OTU prevalences alongwith their taxonomic affiliations
+# will aid in checking if you filter OTUs based on prevalence, then what taxonomic affliations will be lost
+
+data(atlas1006)
+
+# Use sample and taxa subset to speed up example
+p0 <- subset_samples(atlas1006, DNA_extraction_method == "r")
+
+# Define detection and prevalence thresholds to filter out rare taxa
+p0 <- core(p0, detection = 10, prevalence = 0)
+
+# For the available taxonomic levels
+plot_taxa_prevalence(p0, "Phylum", detection = 10)
+
+
+```
+
+```{r}
+
+
+
+```
+
+
+CORE MICROBIOME
+```{r load example data for core microbiome}
+
+# Load data
+library(microbiome)
+data(peerj32)
+
+# Rename the data
+pseq <- peerj32$phyloseq
+
+# Calculate compositional version of the data
+# (relative abundances)
+pseq.rel <- microbiome::transform(pseq, "compositional")
+
+```
+
+
+```{r prevalence of taxonomic groups}
+
+# Prevalence of taxonomi groups
+
+# Relative population frequencies; at 1% compositional abundance threshold
+head(prevalence(pseq.rel, detection = 1/100, sort = TRUE))
+
+# Absolute population frequencies (sample count)
+head(prevalence(pseq.rel, detection = 1/100, sort = TRUE, count = TRUE))
+
+
+```
+
+
+
+
+
+
+```{r core analysis}
+
+# Core microbiota analysis
+
+# Names of core taxa
+core.taxa.standard <- core_members(pseq.rel, detection = 0, prevalence = 50/100)
+
+# Full phyloseq object of core data
+pseq.core <- core(pseq.rel, detection = 0, prevalence = .5)
+
+# Retrieving the associated taxa names from the phyloseq object
+core.taxa <- taxa(pseq.core)
+
+# Total core abundance in each sample (sum of abundances of the core members)
+core.abundance <- sample_sums(core(pseq.rel, detection = .01, prevalence = .95))
+
+```
+
+CORE VISUALIZATION
+```{r core line plots}
+
+# Core line plots
+
+# Determine core microbiota across various abundance/prevalence thresholds with the blanket analysis
+
+# With compositional (relative) abundances
+det <- c(0, 0.1, 0.5, 2, 5, 20)/100
+prevalences <- seq(.05, 1, .05)
+plot_core(pseq.rel, prevalences = prevalences, detections = det, plot.type = "lineplot") + xlab("Relative Abundance (%)")
+
+
+```
+
+
+```{r core heat maps}
+
+# Core heat maps
+
+# Core with compositionals:
+prevalences <- seq(.05, 1, .05)
+detections <- 10^seq(log10(1e-3), log10(.2), length = 10)
+
+# Also define gray color palette
+gray <- gray(seq(0,1,length=5))
+p <- plot_core(pseq.rel, plot.type = "heatmap", colours = gray,
+    prevalences = prevalences, detections = detections) +
+    xlab("Detection Threshold (Relative Abundance (%))")
+print(p)    
+
+
+# Core with absolute counts and horizontal view:
+# and minimum population prevalence (given as percentage)
+detections <- 10^seq(log10(1), log10(max(abundances(pseq))/10), length = 10)
+
+library(RColorBrewer)
+p <- plot_core(pseq, plot.type = "heatmap", 
+             prevalences = prevalences,
+             detections = detections,
+         colours = rev(brewer.pal(5, "Spectral")),
+         min.prevalence = .2, horizontal = TRUE)
+print(p)
+
+```
+
+
+As it can be seen, we see only OTu IDs and this may not be useful to interpret the data. We need to repreoccess this figure to include taxonomic information. We can do this as follows:
+
+library(RColorBrewer)
+library(knitr)
+# Core with absolute counts and vertical view:
+# and minimum population prevalence (given as percentage)
+detections <- 10^seq(log10(1), log10(max(abundances(pseq.2))/10), length = 10)
+
+healthycore <- plot_core(pseq.2, plot.type = "heatmap", 
+             prevalences = prevalences,
+             detections = detections,
+         colours = rev(brewer.pal(5, "Spectral")),
+         min.prevalence = .90, horizontal = F)
+# get the data used for plotting 
+df <- healthycore$data 
+
+# get the list of OTUs
+list <- df$Taxa 
+
+# check the OTU ids
+# print(list) 
+
+# get the taxonomy data
+tax <- tax_table(pseq.2)
+tax <- as.data.frame(tax)
+
+# add the OTus to last column
+tax$OTU <- rownames(tax)
+
+# select taxonomy of only 
+# those OTUs that are used in the plot
+tax2 <- dplyr::filter(tax, rownames(tax) %in% list) 
+
+# head(tax2)
+
+# We will merege all the column into one except the Doamin as all is bacteria in this case
+tax.unit <- tidyr::unite(tax2, Taxa_level,c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species", "OTU"), sep = "_;", remove = TRUE)
+
+tax.unit$Taxa_level <- gsub(pattern="[a-z]__",replacement="", tax.unit$Taxa_level)
+
+# add this new information into the plot data df
+
+df$Taxa <- tax.unit$Taxa_level
+
+# you can see now we have the taxonomic information
+knitr::kable(head(df))
+
+# replace the data in the plot object
+healthycore$data <- df
+
+plot(healthycore + theme(axis.text.y = element_text(face="italic")))
+
+
+
+```{r}
+
+```
+
+MICROBIOME STABILITY ANALYSIS
+
+Get example data - HITChip Atlas of 130 genus-like taxa across 1006 healthy western adults. A subset of 76 subjects have also short time series available for temporal stability analysis:
+```{r microbiome stability analysis}
+
+# Load the example data
+set.seed(134)
+library(microbiome)
+library(dplyr)
+data(atlas1006)
+
+# Rename the example data
+pseq <- atlas1006
+
+# Focus on specific subset
+pseq <- pseq %>% subset_samples(DNA_extraction_method == "r")
+
+# Use relative abundances
+pseq <- microbiome::transform(pseq, "compositional")
+
+# Keep only the prevalent taxa to speed up examples
+pseq <- core(pseq, detection = .1/100, prevalence = 99/100)
+
+# For cross-sectional analysis, use only the baseline time point:
+pseq0 <- baseline(pseq)
+
+```
+
+
+It has been reported that certain microbial groups exhibit bi-stable abundance distributions with distinct peaks at low and high abundances, and an instable intermediate abundance range. Instability at the intermediate abundance range is hence one indicator of bi-stability. Lahti et al. 2014 used straightforward correlation analysis to quantify how the distance from the intermediate abundance region (50% quantile) is associated with the observed shifts between consecutive time points.
+```{r intermediate stability quantification}
+
+# Intermediate stability quantification
+intermediate.stability <- intermediate_stability(pseq, output = "scores")
+
+```
+
+
+BIMODALITY ANALYSIS
+
+Bimodality of the abundance distribution provides an indirect indicator of bistability, although other explanations such as sampling biases etc. should be controlled. Multiple bimodality scores are available.
+```{r}
+
+# Load the example data
+library(microbiome)
+library(dplyr)
+data(atlas1006)
+
+# Rename the example data
+pseq <- atlas1006
+
+# Focus on specific DNA extraction method
+pseq <- pseq %>% subset_samples(DNA_extraction_method == "r")
+
+# Keep prevalent taxa (HITChip signal >3 in >20 percent of the samples)
+pseq <- core(pseq, detection = 10^3, prevalence = .2)
+
+# Use relative abundances
+pseq <- microbiome::transform(pseq, "compositional")
+
+# For cross-sectional analysis, include
+# only the zero time point:
+pseq0 <- subset_samples(pseq, time == 0)
+
+
+# Bimodality is better estimated from log10 abundances
+pseq0.log10 <- microbiome::transform(pseq0, "log10")
+bimodality <- bimodality(pseq0.log10, method = "potential_analysis", bs.iter = 20)
+
+```
+
+
+```{r bimodality visualization}
+
+# Visualize population densities for unimodal and bimodal groups
+
+# Pick the most and least bimodal taxa as examples
+unimodal  <- names(sort(bimodality))[[1]]
+bimodal  <- rev(names(sort(bimodality)))[[1]]
+
+# Visualize population frequencies
+library(ggplot2)
+theme_set(theme_bw(20))
+p1 <- plot_density(pseq, variable = unimodal, log10 = TRUE) 
+p2 <- plot_density(pseq, variable = bimodal,  log10 = TRUE) 
+library(gridExtra)
+library(ggplot2)
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+
+```{r tipping point detection}
+
+# Tipping point detection
+
+# Log10 abundance for a selected taxonomic group
+tax <- bimodal
+
+# Detect tipping points detection at log10 abundances 
+x <- log10(abundances(pseq)[tax,])
+
+# Bootstrapped potential analysis to identify potential minima
+set.seed(3432)
+potential.minima <- potential_analysis(log10(abundances(pseq)[tax,]), bs.iter = 50)$minima
+# Same with earlywarnings package (without bootstrap ie. less robust)
+# library(earlywarnings)
+# res <- livpotential_ews(x)$min.points
+
+# Identify the potential minimum location as a tipping point candidate
+# and cast the tipping back to the original (non-log) space:
+tipping.point <- 10^potential.minima
+
+
+
+
+# Identify potential minima in cross-section population data as tipping point candidates.
+
+# Log10 abundance for a selected taxonomic group
+# Pick the most bimodal taxa as an example
+tax  <- names(which.max(bimodality.score))
+
+# Detect tipping points detection at log10 abundances 
+x <- abundances(microbiome::transform(pseq, "log10"))[tax,]
+
+# Bootstrapped potential analysis to identify potential minima
+# in practice, use more bootstrap iterations
+potential.minima <- potential_analysis(x, bs.iter = 10)$minima
+
+# Same with earlywarnings package (without bootstrap ie. less robust)
+# library(earlywarnings)
+# res <- livpotential_ews(x)$min.points
+
+# Identify the potential minimum location as a tipping point candidate
+# and cast the tipping back to the original (non-log) space:
+tipping.point <- 10^potential.minima
+
+print(tipping.point)
+
+```
+
+
+
+Pick subset of the HITChip Atlas data set and plot the subject abundance variation lineplot (Variation tip plot) and Bimodality hotplot for a given taxon as in Lahti et al. 2014. The Dialister has bimodal population distribution and reduced temporal stability within subjects at intermediate abundances.
+```{r variation lineplot and bimodality hotplot}
+
+# Variation lineplot and bimodality hotplot
+
+# We set the tipping point manually in this example
+
+# Bimodality hotplot:
+# Consider a unique sample from each subject: the baseline time point 
+p <- hotplot(pseq0, tax, tipping.point = 0.005)
+print(p)
+
+# Visualize bimodality
+pv <- plot_tipping(pseq, tax, tipping.point = 0.005)
+print(pv)
+
+```
+
+
+Comparing bimodality and intermediate stability
+The analysis suggests that bimodal population distribution across individuals is often associated with instable intermediate abundances within individuals. The specific bi-stable groups in the upper left corner were suggested to constitute bistable tipping elements of the human intestinal microbiota in Lahti et al. Nat. Comm. 5:4344, 2014:
+```{r comparing bimodality and intermediate stability}
+
+# Comparing bimodality and intermediate stability
+
+taxa <- taxa(pseq0)
+df <- data.frame(group = taxa,
+                 intermediate.stability = intermediate.stability[taxa],
+         bimodality = bimodality.score[taxa])
+
+theme_set(theme_bw(20))
+p <- ggplot(df,
+       aes(x = intermediate.stability, y = bimodality, label = group)) +
+       geom_text() +
+       geom_point() 
+print(p)
+
+```
+
+```{r}
+
+```
+
