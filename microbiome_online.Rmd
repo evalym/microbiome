@@ -7,7 +7,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Combining 2 dat asets
 
-ps_merge <- merge_phyloseq(pseq, atlas1006)
+ps_merge <- merge_phyloseq(esophagus, atlas1006)
 
  get_variable(batmicrobiome,""LATITUDE"" )
  
@@ -63,10 +63,43 @@ batmicrobiome = sample_data(data.frame(
 
 
 
+#
+data(esophagus)
+tree <- phy_tree(esophagus)
+otu  <- otu_table(esophagus)
+otutree0 <- phyloseq(otu, tree)
+ plot_tree(otutree0)
+otutree1 <- merge_taxa(otutree0, 1:8, 2)
+plot_tree(esophagus, ladderize="left")
+
+
+
+stomach <- subset_samples(physeq3, Sample_type=="Stomach")
+data(atlas1006)   
+# Rename the example data (which is a phyloseq object)
+pseq <- atlas1006
+x <- tax_glom(pseq, taxrank="Phylum")
+pseq <- tax_glom(pseq, taxrank="Genus")
+
+rank_names(pseq)
+library(HITChipDB)
+ data.dir <- system.file("HITChip.tab", package = "microbiome")
+  dat <- import_hitchip(data.dir)
+  
+  pseq <- HITChipDB::read_hitchip(data.dir, method = "frpa")$pseq
+  
+  treefile = read_tree("HITdb.tre", errorIfNULL = T)
+  
+    library(microbiome)
+  data(peerj32)
+  otu <- peerj32$microbes
+  meta <- peerj32$meta
+  
+  
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
-	setwd("/omega/bashscripts") 
+	setwd("/omega/bashscripts/microbiome") 
 
 	## Get data
 	library(foreign)
@@ -96,16 +129,131 @@ library(knitr)
 library(ggpubr)
 
 library(phylogeo)
+library("HITChipDB")
+library(phangorn)
 
 data(atlas1006)   
 # Rename the example data (which is a phyloseq object)
 pseq <- atlas1006
+#pseq <- tax_glom(pseq, taxrank="Phylum")
+#pseq <- tax_glom(pseq, taxrank="Genus")
+```
+
+Taxonomic Filtering
+
+In many biological settings, the set of all organisms from all samples are well-represented in the available taxonomic reference database. When (and only when) this is the case, it is reasonable or even advisable to filter taxonomic features for which a high-rank taxonomy could not be assigned. Such ambiguous features in this setting are almost always sequence artifacts that don’t exist in nature. It should be obvious that such a filter is not appropriate for samples from poorly characterized or novel specimens, at least until the possibility of taxonomic novelty can be satisfactorily rejected. Phylum is a useful taxonomic rank to consider using for this purpose, but others may work effectively for your data.
+
+```{r}
+
+table(tax_table(pseq)[, "Phylum"], exclude = NULL)
+
+# Compute prevalence of each feature, store as data.frame
+prevdf = apply(X = otu_table(pseq),
+               MARGIN = ifelse(taxa_are_rows(pseq), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(pseq),
+                    tax_table(pseq))
+
+# Are there phyla that are comprised of mostly low-prevalence features? Compute the total and average prevalences of the features in each phylum.
+tab <- plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+
+# Plot
+stargazer(tab, summary=FALSE, type = "text")
+
+#IF NEED TO REMOVE
+# Define phyla to filter
+#filterPhyla = c("Fusobacteria", "Deinococcus-Thermus")
+# Filter entries with unidentified Phylum.
+#ps1 = subset_taxa(ps, !Phylum %in% filterPhyla)
+#ps1
 
 ```
+
+
+Prevalence Filtering
+The previous filtering steps are considered supervised, because they relied on prior information that is external to this experiment (a taxonomic reference database). This next filtering step is completely unsupervised, relying only on the data in this experiment, and a parameter that we will choose after exploring the data. Thus, this filtering step can be applied even in settings where taxonomic annotation is unavailable or unreliable.
+
+First, explore the relationship of prevalence and total read count for each feature. Sometimes this reveals outliers that should probably be removed, and also provides insight into the ranges of either feature that might be useful. This aspect depends quite a lot on the experimental design and goals of the downstream inference, so keep these in mind. It may even be the case that different types of downstream inference require different choices here. There is no reason to expect ahead of time that a single filtering workflow is appropriate for all analysis.
+
+Each point in Figure 2 is a different taxa. Exploration of the data in this way is often useful for selecting filtering parameters, like the minimum prevalence criteria we will used to filter the data above.
+
+Sometimes a natural separation in the dataset reveals itself, or at least, a conservative choice that is in a stable region for which small changes to the choice would have minor or no effect on the biological interpreation (stability). Here no natural separation is immediately evident, but it looks like we might reasonably define a prevalence threshold in a range of zero to ten percent or so. Take care that this choice does not introduce bias into a downstream analysis of association of differential abundance.
+
+The following uses five percent of all samples as the prevalence threshold.
+
+```{r}
+# Subset to the remaining phyla
+prevdf1 = subset(prevdf, Phylum %in% get_taxa_unique(pseq))
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(pseq),color=Phylum)) +
+  # Include a guess for parameter
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +  geom_point(size = 2, alpha = 0.7) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+  facet_wrap(~Phylum) + theme(legend.position="none")
+```
+
+The following uses five percent of all samples as the prevalence threshold.
+
+```{r}
+# Define prevalence threshold as 5% of total samples
+prevalenceThreshold = 0.05 * nsamples(pseq)
+keepTaxa = rownames(prevdf1)[(prevdf1$Prevalence >= prevalenceThreshold)]
+ps2 = prune_taxa(keepTaxa, pseq)
+```
+
+Agglomerate taxa
+When there is known to be a lot of species or sub-species functional redundancy in a microbial community, it might be useful to agglomerate the data features corresponding to closely related taxa. Ideally we would know the functional redundancies perfectly ahead of time, in which case we would agglomerate taxa using those defined relationships and the function in phyloseq. That kind of exquisite functional data is usually not available, and different pairs of microbes will have different sets of overlapping functions, complicating the matter of defining appropriate grouping criteria.
+
+While not necessarily the most useful or functionally-accurate criteria for grouping microbial features (sometimes far from accurate), taxonomic agglomeration has the advantage of being much easier to define ahead of time. This is because taxonomies are usually defined with a comparatively simple tree-like graph structure that has a fixed number of internal nodes, called “ranks”. This structure is simple enough for the phyloseq package to represent taxonomies as table of taxonomy labels. Taxonomic agglomeration groups all the “leaves” in the hierarchy that descend from the user-prescribed agglomerating rank, this is sometimes called ‘glomming’.
+
+The following example code shows how one would combine all features that descend from the same genus.
+
+```{r}
+# How many genera would be present after filtering?
+length(get_taxa_unique(ps2, taxonomic.rank = "Genus"))
+## [1] 49
+ps3 = tax_glom(ps2, "Genus", NArm = TRUE)
+ps4 = tax_glom(ps2, "Phylum", NArm = TRUE)
+
+#Here phyloseq’s plot_tree() function compare the original unfiltered data, the tree after taxonoic agglomeration, and the tree after phylogenetic agglomeration. These are stored as separate plot objects, then rendered together in one combined graphic using  gridExtra::grid.arrange.
+
+multiPlotTitleTextSize = 15
+p2tree = plot_tree(ps2, method = "treeonly",
+                   ladderize = "left",
+                   title = "Before Agglomeration") +
+  theme(plot.title = element_text(size = multiPlotTitleTextSize))
+p3tree = plot_tree(ps3, method = "treeonly",
+                   ladderize = "left", title = "By Genus") +
+  theme(plot.title = element_text(size = multiPlotTitleTextSize))
+p4tree = plot_tree(ps4, method = "treeonly",
+                   ladderize = "left", title = "By Phylum") +
+  theme(plot.title = element_text(size = multiPlotTitleTextSize))
+
+# group plots together
+grid.arrange(nrow = 1, p2tree, p3tree, p4tree)
+
+```
+
+```{r}
+library(dada2)
+library(DECIPHER)
+ref_fasta <- "data/rdp_train_set_14.fa.gz"
+taxtab <- assignTaxonomy(seqtab, refFasta = ref_fasta)
+colnames(taxtab) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus")
+
+taxonomy <- tax_table(pseq)
+
+```
+
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
 
 ```{r}
+
+
+
 tab <- global(pseq, index = "all")
 stargazer(tab, type = "text")
 
@@ -118,6 +266,14 @@ ps1 <- prune_taxa(taxa_sums(pseq) > 0, pseq)
 tab <- diversities(ps1, index = "all")
 stargazer(tab, type = "text",summary = NULL)
 kable(head(tab))
+
+
+alpha2 <- . %>%
+  prune_taxa(taxa_sums(.) > 0, .) %>%
+  diversities(., index = "all")  %>%
+  kable(head(.))
+
+  
 ```
 
 ```{r}
@@ -170,6 +326,82 @@ plot(tab)
 
 ```
 
+
+
+```{r}
+# CORE
+
+# Calculate compositional version of the data
+# (relative abundances)
+pseq.rel <- microbiome::transform(pseq, "compositional")
+
+
+#Relative population frequencies; at 1% compositional abundance threshold:
+
+head(prevalence(pseq.rel, detection = 1, sort = TRUE))
+
+# Absolute population frequencies (sample count):
+
+head(prevalence(pseq.rel, detection = 1, sort = TRUE, count = TRUE))
+
+
+# This returns the taxa that exceed the given prevalence and detection thresholds
+pseq.core <- core(pseq.rel, detection = 0, prevalence = .5)
+
+# Retrieving the associated taxa names from the phyloseq object:
+core.taxa <- taxa(pseq.core)
+
+
+# Total core abundance in each sample (sum of abundances of the core members):
+core.abundance <- sample_sums(core(pseq.rel, detection = .01, prevalence = .95))
+
+# With compositional (relative) abundances
+det <- c(0, 0.1, 0.5, 2, 5, 20)/100
+prevalences <- seq(.05, 1, .05)
+plot_core(pseq.rel, prevalences = prevalences, detections = det, plot.type = "lineplot") + xlab("Relative Abundance (%)")
+
+# COREHEAT MAPS
+
+# Core with compositionals:
+prevalences <- seq(.05, 1, .05)
+detections <- 10^seq(log10(1e-3), log10(.2), length = 10)
+
+# Also define gray color palette
+gray <- gray(seq(0,1,length=5))
+p <- plot_core(pseq.rel, plot.type = "heatmap", colours = gray,
+    prevalences = prevalences, detections = detections) +
+    xlab("Detection Threshold (Relative Abundance (%))")
+print(p)    
+
+
+# Same with the viridis color palette
+# color-blind friendly and uniform
+# options: viridis, magma, plasma, inferno
+# https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html
+# Also discrete=TRUE versions available
+library(viridis)
+
+## Loading required package: viridisLite
+
+print(p + scale_fill_viridis())
+
+## Scale for 'fill' is already present. Adding another scale for 'fill',
+## which will replace the existing scale.
+
+# Core with absolute counts and horizontal view:
+# and minimum population prevalence (given as percentage)
+detections <- 10^seq(log10(1), log10(max(abundances(pseq))/10), length = 10)
+
+library(RColorBrewer)
+p <- plot_core(pseq, plot.type = "heatmap", 
+             prevalences = prevalences,
+             detections = detections,
+         colours = rev(brewer.pal(5, "Spectral")),
+         min.prevalence = .2, horizontal = TRUE)
+print(p)
+
+
+```
 
 
 ```{r}
@@ -427,4 +659,9 @@ data(mountainsoil)
 
 
 The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+
+
+
 
