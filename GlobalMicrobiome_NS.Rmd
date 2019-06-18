@@ -533,11 +533,24 @@ pseq.ord <- ordinate(pseq.rel, "NMDS", "bray")
 
 p1 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "mnd")
 plot(p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
-ggsave("NMDSt.png")
+ggsave("NMDStMND.png")
 
 p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "MND Prevalence")
-ggsave("NMDS_facet.png")
+ggsave("NMDS_facetMND.png")
 
+p2 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "pd")
+plot(p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence"))
+ggsave("NMDStpd.png")
+
+p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "PD Prevalence")
+ggsave("NMDS_facetpd.png")
+
+p3 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "pd")
+plot(p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence"))
+ggsave("NMDStpd.png")
+
+p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "PD Prevalence")
+ggsave("NMDS_facetpd.png")
 
 
 ```
@@ -556,6 +569,20 @@ ggsave("MDS.png")
 
 p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, 3) + labs(color = "MND Prevalence")
 ggsave("NMDS_facet.png")
+
+p2 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "pd")
+plot(p2 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence"))
+ggsave("MDSpd.png")
+
+p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~pd, 3) + labs(color = "PD Prevalence")
+ggsave("NMDS_facetPD.png")
+
+p3 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "ad")
+plot(p3 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "AD Prevalence"))
+ggsave("MDSad.png")
+
+p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~pd, 3) + labs(color = "AD Prevalence")
+ggsave("NMDS_facetAD.png")
 
 ```
 
