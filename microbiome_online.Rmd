@@ -7,21 +7,37 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Combining 2 dat asets
 
-ps_merge <- merge_phyloseq(esophagus, atlas1006)
+mergedGP = merge_samples(TwinsUK,atlas1006)
+
+ps_merge <- merge_phyloseq(atlas1006, tax_table(TwinsUK))
+
+ps_merge <- merge_phyloseq(TwinsUK, atlas1006)
 
  get_variable(batmicrobiome,""LATITUDE"" )
  
  get_variable(batmicrobiome,"LONGITUDE" )
  
-sample_data(batmicrobiome)
+sample_data(atlas1006)
+ 
+ sample_data(atlas1006)
+ 
+ data=subset(pseq.meta, !is.na(mnd))
  
 sample_names(batmicrobiome)
 
 batmicrobiome[LONGITUDE] <- sample(50:1000)
 
+pseq_temp <- baseline(atlas1006)
+
+temp <- complete.cases(sample_data(atlas1006))
+
 sample_data(atlas1006)$human = factor( get_variable(atlas1006) %in% c("Feces", "Mock", "Skin", "Tongue") )
 
 sample_data(atlas1006)$human = sample(50:1000)
+
+table(sample_data(atlas1006)$nationality)
+
+
 
 sample_data(atlas1006)$human = rep(3,1151) %%% THIS WORKS !!!!
 
@@ -73,6 +89,7 @@ otutree1 <- merge_taxa(otutree0, 1:8, 2)
 plot_tree(esophagus, ladderize="left")
 
 
+clostridium <- subset_taxa(pseq, Phylum =="Clostridium cluster I"| "Clostridium cluster XI"|"Clostridium cluster XVI"| "Clostridium cluster III"| "Clostridium cluster XIII"| "Clostridium cluster XVII"| "Clostridium cluster IV"| "Clostridium cluster XVIa"| "Clostridium cluster XVIII" |"Clostridium cluster IX"| "Clostridium cluster XV"| "Uncultured Clostridiales")
 
 stomach <- subset_samples(physeq3, Sample_type=="Stomach")
 data(atlas1006)   
@@ -95,11 +112,52 @@ library(HITChipDB)
   otu <- peerj32$microbes
   meta <- peerj32$meta
   
+  # drops it into different countries
+  pseq.subset <- subset_samples(pseq, nationality == "SouthEurope"& gender=="female" )
+  
+  clostridium <- subset_samples(pseq, Phylum =="Clostridium")
+  
+  library(car)
+recode(sample_data(pseq)$nationality, "c('SouthEurope', 'CentralEurope')='A+B'")
+  
+  
+  
+  df %>%
+   mutate(x= recode(sample_data(pseq)$nationality, "c('SouthEurope', 'CentralEurope')='A+B'"))
+  
+sample_data(pseq)$bob[subset_samples(pseq, nationality == "SouthEurope"& nationality == "Scandinavia" )] <- "TEST"
+
+# grabs the nationality from phyloseq
+test <- get_variable(pseq,"nationality" ) 
+# check you've installed this library
+library(forcats)
+# this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
+test <- fct_collapse(test, AB = c("SouthEurope","CentralEurope"))
+# creates a new variable in the phyloseq called mnd
+sample_data(pseq)$mnd = test
+# checks that it has worked. 
+get_variable(pseq,"mnd" )
+
+data$grip6max[data$grprespd==3 & data$sex==1] <- 29.46 
+
+# Gives an overview of the data set
+sample_data(cdi_schubert)
+sample_data(ps_merge)
+sample_data(pseq)$nationality
+
+https://www.nature.com/articles/s41467-017-01973-8.pdf?origin=ppub
+
+dietswap
+
+ps_merge <- merge_phyloseq(cdi_schubert, atlas1006)
+
+)
   
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
-	setwd("/omega/bashscripts/microbiome") 
+	setwd("/omega/bashscripts/microbiomedatarepo/datasets/microbiomeDB") 
+
 
 	## Get data
 	library(foreign)
@@ -131,6 +189,8 @@ library(ggpubr)
 library(phylogeo)
 library("HITChipDB")
 library(phangorn)
+library(microbiomeutilities)
+
 
 data(atlas1006)   
 # Rename the example data (which is a phyloseq object)
@@ -416,6 +476,7 @@ kable(head(tab))
 stargazer(tab, type = "text",summary = NULL)
 plot(tab)
 
+p <- ggplot(tab) + 
 ```
 
 
