@@ -696,21 +696,51 @@ ad.meta <- meta(ad.pseq.rel)
 
 # samples x species as input
 library(vegan)
-permanova <- adonis(t(otu) ~ mnd,
-               data = meta, permutations=999, method = "bray")
 
+# MND
+mnd.permanova <- adonis(t(mnd.otu) ~ mnd,
+               data = meta, permutations=999, method = "bray")
 # P-value
-print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
-summary(permanova$aov.tab)
+print(as.data.frame(mnd.permanova$aov.tab)["mnd", "Pr(>F)"])
+summary(mnd.permanova$aov.tab)
+
+# PD
+pd.permanova <- adonis(t(pd.otu) ~ pd,
+               data = meta, permutations=999, method = "bray")
+# P-value
+print(as.data.frame(pd.permanova$aov.tab)["pd", "Pr(>F)"])
+summary(pd.permanova$aov.tab)
+
+# AD
+ad.permanova <- adonis(t(ad.otu) ~ ad,
+               data = meta, permutations=999, method = "bray")
+# P-value
+print(as.data.frame(ad.permanova$aov.tab)["ad", "Pr(>F)"])
+summary(ad.permanova$aov.tab)
+
+
 ```
 
 Check that variance homogeneity assumptions hold (to ensure the reliability of the results):Check that variance homogeneity assumptions hold (to ensure the reliability of the results):
 ```{r ANOVA}
+#MND
+mnd.dist <- vegdist(t(mnd.otu))
+mnd.anov <- anova(betadisper(mnd.dist, meta$mnd))
+summary(mnd.anov)
+tidy(mnd.anov)
 
-dist <- vegdist(t(otu))
-anov <- anova(betadisper(dist, meta$mnd))
-summary(anov)
-tidy(anov)
+#PD
+pd.dist <- vegdist(t(pd.otu))
+pd.anov <- anova(betadisper(pd.dist, meta$pd))
+summary(pd.anov)
+tidy(pd.anov)
+
+#AD
+ad.dist <- vegdist(t(ad.otu))
+ad.anov <- anova(betadisper(ad.dist, meta$ad))
+summary(ad.anov)
+tidy(ad.anov)
+
 
 ```
 
