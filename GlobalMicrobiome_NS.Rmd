@@ -242,7 +242,6 @@ pseq <- baseline(atlas1006) # only uses the baseline samples. This is n=1006
 # grabs the nationality from phyloseq
 mbnational <- get_variable(pseq, "nationality" )
 
-
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
 mndmbnational <- fct_collapse(mbnational, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
 
@@ -261,7 +260,7 @@ sample_data(pseq)$pd = pdmbnational
 sample_data(pseq)$ad = admbnational
 
 # checks that it has worked.
-get_variable(pseq, "mnd")
+#get_variable(pseq, "mnd")
 
 ```
 
@@ -277,17 +276,13 @@ pseq.new <- subset_taxa(pseq, Phylum =="Actinobacteria" | Phylum =="Bacilli"| Ph
 
 ## pseq summary
 ```{r pseq}
-
 pseq
-
 ```
 
 ```{r List of genera in phylum}
-
 # List of Genera in the Bacteroideted Phylum
 taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacteroidetes
 print(taxa)
-
 ```
 
 
@@ -308,7 +303,6 @@ table(sample_data(pseq)$ad)
 # Summarise contents of phyloseq
 summarize_phyloseq(pseq)
 # Sparsity is how populated is the data with zeros
-
 kable(head(tax_table(pseq)))
 tax_table(pseq)
 
@@ -348,8 +342,7 @@ Richness: Chao, ACE
 ```{r prepare data for alpha diversity visualisation}
 
 # Prepare data for vizualisation
-
-# Alpha diversity again
+# Alpha diversity for the entire data set
 png("alpha.png")
 tab <- diversities(pseq, index = "all")
 stargazer(tab, type = "text",summary = NULL)
@@ -382,7 +375,7 @@ pseq.meta$nationality <- factor(pseq.meta$nationality, levels = c("Scandinavia",
 # Violin plot
 # the number in the palettes must equal the number of groups in nationlaity.pairs
 p1 <- ggviolin(pseq.meta, x = "nationality", y = "Shannon",
- add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+      add = "boxplot", fill = "nationality", palette = "paired") +   theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
   print(p1)
 ggsave("nation_violin_shannon.png")
 
@@ -479,24 +472,7 @@ dev.off()
 ```
 
 
-Divergence of a given sample set can be quantified as the average dissimilarity of each sample from the group mean; the dissimilarity can be quantified by beta diversity, for instance. This was applied in group-level comparisons for instance in Salonen et al. ISME J 2014 (they focused on homogeneity using inverse correlation, whereas here we focus on divergence using correlation but the measure is essentially the same).
-```{r Calculate group divergences}
- 
-# Use these to compare microbiota divergence within each group
 
-p.low <- subset_samples(pseq, mnd == "LOW")
-p.low.d <- divergence(p.low)
-
-p.med <- subset_samples(pseq, mnd == "MEDIUM")
-p.med.d <- divergence(p.med)
-
-p.high <- subset_samples(pseq, mnd == "HIGH")
-p.high.d <- divergence(p.high)
-
-p <- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
-plot(p)
-
-```
  The low group tends to have smaller values, indicating that the samples are more similar to the group mean, and is less heterogeneous (has smaller spread / is more homogeneous):
 
 
@@ -530,15 +506,15 @@ p2 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "pd")
 plot(p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence"))
 ggsave("NMDStpd.png")
 
-p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "PD Prevalence")
+p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~pd, nrow = 2) + labs(color = "PD Prevalence")
 ggsave("NMDS_facetpd.png")
 
-p3 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "pd")
-plot(p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence"))
-ggsave("NMDStpd.png")
+p3 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "ad")
+plot(p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "AD Prevalence"))
+ggsave("NMDStad.png")
 
-p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "PD Prevalence")
-ggsave("NMDS_facetpd.png")
+p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~ad, nrow = 2) + labs(color = "AD Prevalence")
+ggsave("NMDS_facetad.png")
 
 
 ```
@@ -569,7 +545,7 @@ p3 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "ad")
 plot(p3 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "AD Prevalence"))
 ggsave("MDSad.png")
 
-p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~pd, 3) + labs(color = "AD Prevalence")
+p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~ad, 3) + labs(color = "AD Prevalence")
 ggsave("NMDS_facetAD.png")
 
 ```
@@ -613,14 +589,73 @@ t-SNE is a popular new ordination technique
 ```{r}
 
 tsne_res <- tsne_phyloseq(pseq, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
+#MND
 tsne_p <- plot_tsne_phyloseq(pseq, tsne_res,
   color = 'mnd', title='t-SNE (Bray)')
 tsne_p + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence")
-ggsave("t_sne.png")
+ggsave("mnd_t_sne.png")
+# PD
+tsne_p <- plot_tsne_phyloseq(pseq, tsne_res,
+  color = 'pd', title='t-SNE (Bray)')
+tsne_p + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "PD Prevalence")
+ggsave("pd_t_sne.png")
+
+# AD
+tsne_p <- plot_tsne_phyloseq(pseq, tsne_res,
+  color = 'ad', title='t-SNE (Bray)')
+tsne_p + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "AD Prevalence")
+ggsave("ad_t_sne.png")
 
 ```
 
 
+Divergence of a given sample set can be quantified as the average dissimilarity of each sample from the group mean; the dissimilarity can be quantified by beta diversity, for instance. This was applied in group-level comparisons for instance in Salonen et al. ISME J 2014 (they focused on homogeneity using inverse correlation, whereas here we focus on divergence using correlation but the measure is essentially the same).
+```{r Calculate group divergences}
+ 
+# Use these to compare microbiota divergence within each group
+
+#MND
+mnd.p.low <- subset_samples(pseq, mnd == "LOW")
+mnd.p.low.d <- divergence(mnd.p.low)
+
+mnd.p.med <- subset_samples(pseq, mnd == "MEDIUM")
+p.med.d <- divergence(mnd.p.med)
+
+mnd.p.high <- subset_samples(pseq, mnd == "HIGH")
+p.high.d <- divergence(mnd.p.high)
+
+mnd.p <- boxplot(list(Low = mnd.p.low.d, Medium = mnd.p.med.d, High = mnd.p.high.d))
+plot(mnd.p)
+
+# PD
+
+pd.p.low <- subset_samples(pseq, pd == "LOW")
+pd.p.low.d <- divergence(pd.p.low)
+
+pd.p.med <- subset_samples(pseq, pd == "MEDIUM")
+p.med.d <- divergence(pd.p.med)
+
+pd.p.high <- subset_samples(pseq, pd == "HIGH")
+p.high.d <- divergence(pd.p.high)
+
+pd.p <- boxplot(list(Low = pd.p.low.d, Medium = pd.p.med.d, High = pd.p.high.d))
+plot(pd.p)
+
+# AD
+
+ad.p.low <- subset_samples(pseq, ad == "LOW")
+ad.p.low.d <- divergence(ad.p.low)
+
+ad.p.med <- subset_samples(pseq, ad == "MEDIUM")
+p.med.d <- divergence(ad.p.med)
+
+ad.p.high <- subset_samples(pseq, ad == "HIGH")
+p.high.d <- divergence(ad.p.high)
+
+ad.p <- boxplot(list(Low = ad.p.low.d, Medium = ad.p.med.d, High = ad.p.high.d))
+plot(ad.p)
+
+```
 
 ## PERMANOVA significance test for group-level differences
 Evaluate whether the MND grouping has a significant effect on overall gut microbiota composition
@@ -628,12 +663,31 @@ Evaluate whether the MND grouping has a significant effect on overall gut microb
 ```{r Redefine data}
 
 # Convert to compositional data
-pseqLvH <- merge_phyloseq(p.low,p.high)
-pseqLvM <- merge_phyloseq(p.low,p.med)
+# MND
+mnd.pseqLvH <- merge_phyloseq(mnd.p.low,mnd.p.high)
+mnd.pseqLvM <- merge_phyloseq(mnd.p.low,mnd.p.med)
 
-pseq.rel <- microbiome::transform(pseqLvH, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
+mnd.pseq.rel <- microbiome::transform(mnd.pseqLvH, "compositional")
+mnd.otu <- abundances(mnd.pseq.rel)
+mnd.meta <- meta(mnd.pseq.rel)
+
+# PD
+
+pd.pseqLvH <- merge_phyloseq(pd.p.low,pd.p.high)
+pd.pseqLvM <- merge_phyloseq(pd.p.low,pd.p.med)
+
+pd.pseq.rel <- microbiome::transform(pd.pseqLvH, "compositional")
+pd.otu <- abundances(pd.pseq.rel)
+pd.meta <- meta(pd.pseq.rel)
+
+# AD
+
+ad.pseqLvH <- merge_phyloseq(ad.p.low,ad.p.high)
+ad.pseqLvM <- merge_phyloseq(ad.p.low,ad.p.med)
+
+ad.pseq.rel <- microbiome::transform(ad.pseqLvH, "compositional")
+ad.otu <- abundances(ad.pseq.rel)
+ad.meta <- meta(ad.pseq.rel)
 
 ```
 
