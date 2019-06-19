@@ -1023,9 +1023,20 @@ ggsave("adcl_abundance_bar.png")
 ```{r Clostridium genus bar plots}
 
 pseq.cl.rel <- microbiome::transform(clostridium, "compositional")
-
+#MND
 plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot")
 plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A") 
+ggsave("mndcl_relabundance_bar.png")
+
+#PD
+plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "pd", x.label = "sample", plot.type = "barplot")
+plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A") 
+ggsave("pdcl_relabundance_bar.png")
+
+#AD
+plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "ad", x.label = "sample", plot.type = "barplot")
+plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A") 
+ggsave("adcl_relabundance_bar.png")
 
 ```
 
@@ -1033,11 +1044,8 @@ plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A")
 ```{r Top Phylum Heatmap}
 
 pseq.ph <- aggregate_taxa(pseq, "Phylum")
-
 pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
-
 plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample", plot.type = "heatmap")
-
 plot(plot.comp.rel+ coord_flip()) + theme(axis.text.x=element_blank())
 ggsave("phylum_histogram.png")
 
@@ -1047,11 +1055,8 @@ ggsave("phylum_histogram.png")
 ```{r p.new heatmap}
 
 pseq.n.ph <- aggregate_taxa(pseq.new, "Phylum")
-
 pseq.n.ph.rel <- microbiome::transform(pseq.n.ph, "compositional")
-
 plot.n.comp.rel <- plot_composition(pseq.n.ph.rel, x.label = "sample", plot.type = "heatmap")
-
 p <- plot.n.comp.rel + coord_flip()
 p + theme(axis.text.x=element_blank()) + labs(y = "Sample")
 ggsave("pnew_histogram.png")
@@ -1062,11 +1067,8 @@ ggsave("pnew_histogram.png")
 ```{r clostridium heatmap}
 
 pseq.c.ph <- aggregate_taxa(clostridium, "Phylum")
-
 pseq.c.ph.rel <- microbiome::transform(pseq.c.ph, "compositional")
-
 plot.c.comp.rel <- plot_composition(pseq.c.ph.rel, x.label = "sample", plot.type = "heatmap")
-
 p <- plot.c.comp.rel + coord_flip()
 p + theme(axis.text.x=element_blank()) + labs(y = "Sample")
 ggsave("clos_histogram.png")
@@ -1104,7 +1106,7 @@ pseq_phylum <- psmelt(pseq_phyl)
      # filter(Abundance > 0.01)                             # Filter out low abundance taxa
 
 
-# Plot - Phylum
+# Plot - Phylum MND
 p.ra.phylum <- ggplot(pseq_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
   geom_bar(stat = "identity", width = 1) +
   facet_wrap(~mnd, scales = "free_x", nrow = 4, ncol = 7) +
@@ -1116,22 +1118,43 @@ p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
 plot(p)
 ggsave("phylum_abun_mnd.png")
 
+# Plot - Phylum PD
+p.ra.phylum <- ggplot(pseq_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", width = 1) +
+  facet_wrap(~pd, scales = "free_x", nrow = 4, ncol = 7) +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.title.x = element_blank()) +
+  labs(title = "Abundant Phylum (> 1%)")
+
+p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
+plot(p)
+ggsave("phylum_abun_pd.png")
+
+# Plot - Phylum AD
+p.ra.phylum <- ggplot(pseq_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", width = 1) +
+  facet_wrap(~ad, scales = "free_x", nrow = 4, ncol = 7) +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.title.x = element_blank()) +
+  labs(title = "Abundant Phylum (> 1%)")
+
+p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
+plot(p)
+ggsave("phylum_abun_ad.png")
+
 ```
 
 ```{r}
 
 clos <- aggregate_taxa(clostridium, "Phylum")
-
 # agglomerate at phylum level
 clos_phy <- tax_glom(clos, taxrank = "Phylum")                  
-
 # Transform to rel. abundance (or use ps0.ra)
 clos_phyl <- transform_sample_counts(clos_phy, function(x) {x/sum(x)}) 
-
 # Melt to long format for easy ggploting
 clos_phylum <- psmelt(clos_phyl)
 
-# Plot - Phylum
+# Plot - Phylum MND
 p.ra.phylum <- ggplot(clos_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
   geom_bar(stat = "identity", width = 1) +
   facet_wrap(~mnd, scales = "free_x", nrow = 4, ncol = 7) +
@@ -1142,6 +1165,31 @@ p.ra.phylum <- ggplot(clos_phylum, aes(x = sample, y = Abundance, fill = Phylum)
 p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
 plot(p)
 ggsave("phylum_abun_mnd_clos.png")
+
+# Plot - Phylum PD
+p.ra.phylum <- ggplot(clos_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", width = 1) +
+  facet_wrap(~pd, scales = "free_x", nrow = 4, ncol = 7) +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.title.x = element_blank()) +
+  labs(title = "Abundant Phylum of Clostridium(> 1%)")
+
+p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
+plot(p)
+ggsave("phylum_abun_pd_clos.png")
+
+# Plot - Phylum AD
+p.ra.phylum <- ggplot(clos_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", width = 1) +
+  facet_wrap(~ad, scales = "free_x", nrow = 4, ncol = 7) +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.title.x = element_blank()) +
+  labs(title = "Abundant Phylum of Clostridium(> 1%)")
+
+p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
+plot(p)
+ggsave("phylum_abun_ad_clos.png")
+
 
 ```
 
