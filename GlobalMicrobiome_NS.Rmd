@@ -7,23 +7,20 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("/omega/1006") 
+knitr::opts_knit$set(root.dir = '~/globalmicrobiome')
+
 #test
 ```
 
 
-```{r}
+```{r functions}
 
     
 ##### FUNCTIONS ########
-
-
-
 ##### Normalization #######
 
 # Better rounding function than R's base round
 myround <- function(x) { trunc(x + 0.5) }
-
 
 # Scales reads by 
 # 1) taking proportions
@@ -184,13 +181,6 @@ merge_OTU_intersect <- function(physeq, group){
 ```
 
 
-Atlas1006
-https://rdrr.io/github/microbiome/microbiome/man/atlas1006.html
-Using dataset: atlas1006: HITChip Atlas with 1006 Western adults
-This data set contains genus-level microbiota profiling with HITChip for 1006 western adults with no reported health complications. 
-Format: phyloseq-class format
-Usage: data(atlas1006)
-
 ## Data Set-up
 ```{r Data set-up}
 
@@ -224,24 +214,22 @@ library(phyloseq)
 library(microbiome)
 library(knitr)
 library(ggpubr)
-
-  #library(phylogeo)
+#library(phylogeo)
 library(dplyr)
-
-
 #Graphing package used in phyloseq. To edit the default setting of a plot, you need to use functions in this package.
 library(ggplot2)
-
 library(viridis) 
 library(cowplot)
-
 # install.packages("devtools")
 library(devtools)
 # install_github("opisthokonta/tsnemicrobiota")
 library(tsnemicrobiota)
+# check you've installed this library
+library(forcats)
 
 # Data from http://dx.doi.org/10.1038/ncomms7342
-data(atlas1006)   
+#This data set contains genus-level microbiota profiling with HITChip for 1006 western adults with no reported health complications. 
+
 pseq <- baseline(atlas1006) # only uses the baseline samples. This is n=1006
 
 ```
@@ -253,8 +241,7 @@ pseq <- baseline(atlas1006) # only uses the baseline samples. This is n=1006
 # Create mnd variable
 # grabs the nationality from phyloseq
 mbnational <- get_variable(pseq, "nationality" )
-# check you've installed this library
-library(forcats)
+
 
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
 mndmbnational <- fct_collapse(mbnational, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
