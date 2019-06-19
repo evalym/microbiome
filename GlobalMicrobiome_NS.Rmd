@@ -749,44 +749,98 @@ tidy(ad.anov)
 Show coefficients for the top taxa separating the groups
 ```{r top taxa L vs H}
 
-coef <- coefficients(permanova)["mnd1",]
-top.coef <- coef[rev(order(abs(coef)))[1:20]]
+# MDN
+mnd.coef <- coefficients(mnd.permanova)["mnd1",]
+mnd.top.coef <- coef[rev(order(abs(mnd.coef)))[1:20]]
 par(mar = c(3, 14, 2, 1))
-barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus") 
+barplot(sort(mnd.top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus") 
+ggsave("mndLvH.png")
 
 
-ggsave("LvH.png")
+# PD
+pd.coef <- coefficients(pd.permanova)["pd1",]
+pd.top.coef <- coef[rev(order(abs(pd.coef)))[1:20]]
+par(mar = c(3, 14, 2, 1))
+barplot(sort(pd.top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus") 
+ggsave("pdLvH.png")
+
+# PD
+ad.coef <- coefficients(ad.permanova)["ad1",]
+ad.top.coef <- coef[rev(order(abs(ad.coef)))[1:20]]
+par(mar = c(3, 14, 2, 1))
+barplot(sort(ad.top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus") 
+ggsave("adLvH.png")
 
 ```
 
 ```{r L vs M}
 
-pseqLvM <- merge_phyloseq(p.low,p.med)
+#MND
+mnd.pseqLvM <- merge_phyloseq(mnd.p.low,mnd.p.med)
+mnd.pseq.rel <- microbiome::transform(mnd.pseqLvM, "compositional")
+mnd.otu <- abundances(mnd.pseq.rel)
+mnd.meta <- meta(mnd.pseq.rel)
 
-pseq.rel <- microbiome::transform(pseqLvM, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
+#PD
+pd.pseqLvM <- merge_phyloseq(pd.p.low,pd.p.med)
+pd.pseq.rel <- microbiome::transform(pd.pseqLvM, "compositional")
+pd.otu <- abundances(pd.pseq.rel)
+pd.meta <- meta(pd.pseq.rel)
 
+#AD
+ad.pseqLvM <- merge_phyloseq(ad.p.low,ad.p.med)
+ad.pseq.rel <- microbiome::transform(ad.pseqLvM, "compositional")
+ad.otu <- abundances(ad.pseq.rel)
+ad.meta <- meta(ad.pseq.rel)
+
+
+# MND
 library(vegan)
-permanova <- adonis(t(otu) ~ mnd,
+mnd.permanova <- adonis(t(mnd.otu) ~ mnd,
                data = meta, permutations=999, method = "bray")
-
 # P-value
-print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
-
-dist <- vegdist(t(otu))
-anov <- anova(betadisper(dist, meta$mnd))
-summary(anov)
-tidy(anov)
-
-
-coef <- coefficients(permanova)["mnd1",]
-top.coef <- coef[rev(order(abs(coef)))[1:20]]
+print(as.data.frame(mnd.permanova$aov.tab)["mnd", "Pr(>F)"])
+mnd.dist <- vegdist(t(mnd.otu))
+mnd.anov <- anova(betadisper(mnd.dist, mnd.meta$mnd))
+summary(mnd.anov)
+tidy(mnd.anov)
+mnd.coef <- coefficients(mnd.permanova)["mnd1",]
+mnd.top.coef <- coef[rev(order(abs(mnd.coef)))[1:20]]
 par(mar = c(3, 14, 2, 1))
+barplot(sort(mnd.top.coef), col = rainbow(20), horiz = T, las = 1, font.axis = 3, main = "Top Genus")
+ggsave("mndLvM.png", width = 20, height = 20, units = "cm")
 
-barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, font.axis = 3, main = "Top Genus")
+# PD
+library(vegan)
+pd.permanova <- adonis(t(pd.otu) ~ pd,
+               data = meta, permutations=999, method = "bray")
+# P-value
+print(as.data.frame(pd.permanova$aov.tab)["pd", "Pr(>F)"])
+pd.dist <- vegdist(t(pd.otu))
+pd.anov <- anova(betadisper(pd.dist, pd.meta$pd))
+summary(pd.anov)
+tidy(pd.anov)
+pd.coef <- coefficients(pd.permanova)["pd1",]
+pd.top.coef <- coef[rev(order(abs(pd.coef)))[1:20]]
+par(mar = c(3, 14, 2, 1))
+barplot(sort(pd.top.coef), col = rainbow(20), horiz = T, las = 1, font.axis = 3, main = "Top Genus")
+ggsave("pdLvM.png", width = 20, height = 20, units = "cm")
 
-ggsave("LvM.png", width = 20, height = 20, units = "cm")
+# AD
+library(vegan)
+ad.permanova <- adonis(t(ad.otu) ~ ad,
+               data = meta, permutations=999, method = "bray")
+# P-value
+print(as.data.frame(ad.permanova$aov.tab)["ad", "Pr(>F)"])
+ad.dist <- vegdist(t(ad.otu))
+ad.anov <- anova(betadisper(ad.dist, ad.meta$ad))
+summary(ad.anov)
+tidy(ad.anov)
+ad.coef <- coefficients(ad.permanova)["ad1",]
+ad.top.coef <- coef[rev(order(abs(ad.coef)))[1:20]]
+par(mar = c(3, 14, 2, 1))
+barplot(sort(ad.top.coef), col = rainbow(20), horiz = T, las = 1, font.axis = 3, main = "Top Genus")
+ggsave("adLvM.png", width = 20, height = 20, units = "cm")
 
 ```
 
@@ -809,7 +863,6 @@ This shows a few phyla for which only one feature was observed. Those may be wor
 
 png("Phylum_abundance.png")
 p<- plot_bar(pseq,x="Phylum",fill = "Phylum") +geom_bar(stat="identity")
-
 
 phylumGlommed = tax_glom(pseq, "Phylum")
 plot_bar(phylumGlommed, x="Phylum", fill ="Phylum") +geom_bar(stat="identity")
@@ -905,16 +958,19 @@ ggsave("phylum_relative_abundance_clos2.png")
 levels(pseq.meta$mnd)
 
 pseq.ph <- aggregate_taxa(pseq, "Phylum")
-
 pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
-
+#MND
 plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot")
-
 plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-ggsave("phylum_abundance_bar.png")
-
-
-
+ggsave("mndphylum_abundance_bar.png")
+#PD
+plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "pd", x.label = "PD Incidence", plot.type = "barplot")
+plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("pdphylum_abundance_bar.png")
+#AD
+plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "ad", x.label = "AD Incidence", plot.type = "barplot")
+plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("adphylum_abundance_bar.png")
 ```
 
 
@@ -923,11 +979,18 @@ ggsave("phylum_abundance_bar.png")
 p.new <- aggregate_taxa(pseq.new, "Phylum")
 
 p.new.rel <- microbiome::transform(p.new, "compositional")
-
+#MND
 plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot")
-
 plot.p.new.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-ggsave("pnew_abundance_bar.png")
+ggsave("mndpnew_abundance_bar.png")
+#PD
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "pd", x.label = "sample", plot.type = "barplot")
+plot.p.new.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("pdpnew_abundance_bar.png")
+#AD
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "ad", x.label = "sample", plot.type = "barplot")
+plot.p.new.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("adpnew_abundance_bar.png")
 
 ```
 
@@ -939,10 +1002,21 @@ clos <- aggregate_taxa(clostridium, "Phylum")
 
 pseq.cl.rel <- microbiome::transform(clos, "compositional")
 
+#MND
 plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot")
-
 plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-ggsave("cl_abundance_bar.png")
+ggsave("mndcl_abundance_bar.png")
+
+#PD
+plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "pd", x.label = "sample", plot.type = "barplot")
+plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("pdcl_abundance_bar.png")
+
+#AD
+plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "ad", x.label = "sample", plot.type = "barplot")
+plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+ggsave("adcl_abundance_bar.png")
+
 
 ```
 
@@ -951,7 +1025,6 @@ ggsave("cl_abundance_bar.png")
 pseq.cl.rel <- microbiome::transform(clostridium, "compositional")
 
 plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot")
-
 plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A") 
 
 ```
