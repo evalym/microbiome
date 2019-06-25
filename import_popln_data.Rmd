@@ -68,13 +68,16 @@ mnd.incidence <- read_csv("mnd.csv",col_names = TRUE)
 mnd.incidence <- as.data.frame(mnd.incidence)
 
 mb.gather <- function (x) {
+    # Creates an empty data frame
     mb.group <- data.frame("Location" = c("Central Europe","Eastern Europe","Scandinavia", "Southern Europe","UKIE","USA"), "Mean" = c(1:6)) 
+     # groups the countries to match the microbiome classification 
   c.europe <- filter(x,Location=="Belgium"|Location=="Denmark"|Location=="Germany"|Location=="The Netherlands")
     e.europe <- filter(mnd.incidence,Location=="Poland")
     scan <- filter(mnd.incidence,Location=="Finland"|Location=="Norway"|Location=="Sweden")
     s.europe <- filter(mnd.incidence,Location=="France"|Location=="Italy"|Location=="Serbia"|Location=="Spain")
     ukie <- filter(mnd.incidence,Location=="United Kingdom"|Location=="Ireland")
     usa <- filter(mnd.incidence,Location=="United States")
+    # gmeans the data and put it into the data frame
     mb.group[1,2] <- mean(c.europe$Value)
     mb.group[2,2] <- mean(e.europe$Value)
     mb.group[3,2] <- mean(scan$Value)
