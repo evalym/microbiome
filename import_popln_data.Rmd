@@ -70,11 +70,11 @@ mb.gather <- function (x) {
     mb.group <- data.frame("Location" = c("Central Europe","Eastern Europe","Scandinavia", "Southern Europe","UKIE","USA"), "Mean" = c(1:6)) 
      # groups the countries to match the microbiome classification 
   c.europe <- filter(x,Location=="Belgium"|Location=="Denmark"|Location=="Germany"|Location=="The Netherlands")
-    e.europe <- filter(mnd.incidence,Location=="Poland")
-    scan <- filter(mnd.incidence,Location=="Finland"|Location=="Norway"|Location=="Sweden")
-    s.europe <- filter(mnd.incidence,Location=="France"|Location=="Italy"|Location=="Serbia"|Location=="Spain")
-    ukie <- filter(mnd.incidence,Location=="United Kingdom"|Location=="Ireland")
-    usa <- filter(mnd.incidence,Location=="United States")
+    e.europe <- filter(x,Location=="Poland")
+    scan <- filter(x,Location=="Finland"|Location=="Norway"|Location=="Sweden")
+    s.europe <- filter(x,Location=="France"|Location=="Italy"|Location=="Serbia"|Location=="Spain")
+    ukie <- filter(x,Location=="United Kingdom"|Location=="Ireland")
+    usa <- filter(x,Location=="United States")
     # gmeans the data and put it into the data frame
     mb.group[1,2] <- mean(c.europe$Value)
     mb.group[2,2] <- mean(e.europe$Value)
@@ -87,9 +87,11 @@ mb.gather <- function (x) {
 
 setwd("~/globalmicrobiome")
 # files nwed to be in the owrking directory
-mnd.incidence <- read_csv("MND-De-B.csv",col_names = TRUE)
-mnd.incidence <- as.data.frame(mnd.incidence)
-temp <- mb.gather(mnd.incidence)
+mnd.incidence <- as.data.frame(read_csv("MND-I-B.csv",col_names = TRUE))
+mnd.prev <- as.data.frame(read_csv("MND-P-B.csv",col_names = TRUE))
+mnd.incidence <- mb.gather(mnd.incidence)
+mnd.prev <- mb.gather(mnd.prev)
+
 
 
 ```
