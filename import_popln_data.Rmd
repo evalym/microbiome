@@ -63,9 +63,7 @@ library(forcats)
 # Data from http://dx.doi.org/10.1038/ncomms7342
 #This data set contains genus-level microbiota profiling with HITChip for 1006 western adults with no reported health complications. 
 
-setwd("~/globalmicrobiome")
-mnd.incidence <- read_csv("mnd.csv",col_names = TRUE)
-mnd.incidence <- as.data.frame(mnd.incidence)
+
 
 mb.gather <- function (x) {
     # Creates an empty data frame
@@ -87,7 +85,12 @@ mb.gather <- function (x) {
     return(mb.group)
     }
 
+setwd("~/globalmicrobiome")
+# files nwed to be in the owrking directory
+mnd.incidence <- read_csv("MND-De-B.csv",col_names = TRUE)
+mnd.incidence <- as.data.frame(mnd.incidence)
 temp <- mb.gather(mnd.incidence)
+
 
 ```
 
