@@ -1,0 +1,90 @@
+---
+title: "MRD_final_microbiome"
+author: "Reis-Dehabadi, M"
+date: "4/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '~/globalmicrobiome')
+
+
+```
+
+
+
+## Data Set-up
+```{r Data set-up}
+
+#setwd("/Users/maryam/Scripts/Microbiome") 
+
+	## Get data
+	library(foreign)
+	library(stargazer)
+	library(psych)
+	library(plyr)
+	library(xtable)
+	library(car)
+	#library(dplyr)
+	library(scales)
+	library(reshape) 
+	library(gmodels)
+	library(nnet)
+	library(tidyr)
+	library(sjmisc)
+	library(RColorBrewer)
+  library(htmltools)
+	library(broom)
+
+  #library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+ #library(gdtools)
+
+#The phyloseq package seeks to address issues with multiple microbiome analysis packages by providing a set of functions that internally manage the organizing, linking, storing, and analyzing of phylogenetic sequencing data. In general, this package is used for UniFrac analyses.
+library(phyloseq)
+library(microbiome)
+library(knitr)
+library(ggpubr)
+#library(phylogeo)
+library(dplyr)
+#Graphing package used in phyloseq. To edit the default setting of a plot, you need to use functions in this package.
+library(ggplot2)
+library(viridis) 
+library(cowplot)
+# install.packages("devtools")
+library(devtools)
+# install_github("opisthokonta/tsnemicrobiota")
+library(tsnemicrobiota)
+# check you've installed this library
+library(forcats)
+
+# Data from http://dx.doi.org/10.1038/ncomms7342
+#This data set contains genus-level microbiota profiling with HITChip for 1006 western adults with no reported health complications. 
+
+setwd("~/globalmicrobiome")
+mnd.incidence <- read_csv("mnd.csv",col_names = TRUE)
+mnd.incidence <- as.data.frame(mnd.incidence)
+
+mb.gather <- function (x) {
+    mb.group <- data.frame("Location" = c("Central Europe","Eastern Europe","Scandinavia", "Southern Europe","UKIE","USA"), "Mean" = c(1:6)) 
+  c.europe <- filter(x,Location=="Belgium"|Location=="Denmark"|Location=="Germany"|Location=="The Netherlands")
+    e.europe <- filter(mnd.incidence,Location=="Poland")
+    scan <- filter(mnd.incidence,Location=="Finland"|Location=="Norway"|Location=="Sweden")
+    s.europe <- filter(mnd.incidence,Location=="France"|Location=="Italy"|Location=="Serbia"|Location=="Spain")
+    ukie <- filter(mnd.incidence,Location=="United Kingdom"|Location=="Ireland")
+    usa <- filter(mnd.incidence,Location=="United States")
+    mb.group[1,2] <- mean(c.europe$Value)
+    mb.group[2,2] <- mean(e.europe$Value)
+    mb.group[3,2] <- mean(scan$Value)
+    mb.group[4,2] <- mean(s.europe$Value)
+    mb.group[5,2] <- mean(ukie$Value)
+    mb.group[6,2] <- mean(usa$Value)
+    return(mb.group)
+    }
+
+temp <- mb.gather(mnd.incidence)
+
+```
+
