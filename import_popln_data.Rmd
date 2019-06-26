@@ -89,40 +89,87 @@ setwd("~/globalmicrobiome")
 # files nwed to be in the owrking directory
 
 # For MND
-mnd.incidence <- as.data.frame(read_csv("MND-I-B.csv",col_names = TRUE))
-mnd.prev <- as.data.frame(read_csv("MND-P-B.csv",col_names = TRUE))
+mnd.incidence <- as.data.frame(read_csv("./rawdata/MND-I-B.csv",col_names = TRUE))
+mnd.prev <- as.data.frame(read_csv("./rawdata/MND-P-B.csv",col_names = TRUE))
+
+mnd.roc.i <- as.data.frame(read_csv("./rawdata/MND-I-B-RoC.csv",col_names = TRUE))
+
+mnd.roc.p <- as.data.frame(read_csv("./rawdata/MND-P-B-RoC.csv",col_names = TRUE))
 
 # Run function and change name
 mnd.incidence <- mb.gather(mnd.incidence)
 colnames(mnd.incidence)[2] <- "incidence"
+
+mnd.roc.i <- mb.gather(mnd.roc.i)
+colnames(mnd.roc.i)[2] <- "ROC incidence"
+
 mnd.prev <- mb.gather(mnd.prev)
 colnames(mnd.prev)[2] <- "prevalance"
 
-mnd.ip <- right_join(mnd.prev, mnd.incidence, by = "Location")
+mnd.roc.p <- mb.gather(mnd.roc.p)
+colnames(mnd.roc.p)[2] <- "ROC prevalance"
+# Join them together. 
+mnd.ip <- right_join(mnd.prev, mnd.roc.p, by = "Location")
+mnd.ip <- right_join(mnd.ip, mnd.incidence, by = "Location")
+mnd.ip <- right_join(mnd.ip, mnd.roc.i, by = "Location")
 
 # For IPD
-ipd.incidence <- as.data.frame(read_csv("PD-I-B.csv",col_names = TRUE))
-ipd.prev <- as.data.frame(read_csv("PD-P-B.csv",col_names = TRUE))
+
+ipd.incidence <- as.data.frame(read_csv("./rawdata/PD-I-B.csv",col_names = TRUE))
+ipd.prev <- as.data.frame(read_csv("./rawdata/PD-P-B.csv",col_names = TRUE))
+
+ipd.roc.i <- as.data.frame(read_csv("./rawdata/PD-I-B-RoC.csv",col_names = TRUE))
+
+ipd.roc.p <- as.data.frame(read_csv("./rawdata/PD-P-B-RoC.csv",col_names = TRUE))
 
 # Run function and change name
 ipd.incidence <- mb.gather(ipd.incidence)
 colnames(ipd.incidence)[2] <- "incidence"
+
+ipd.roc.i <- mb.gather(ipd.roc.i)
+colnames(ipd.roc.i)[2] <- "ROC incidence"
+
 ipd.prev <- mb.gather(ipd.prev)
 colnames(ipd.prev)[2] <- "prevalance"
 
-ipd.ip <- right_join(ipd.prev, ipd.incidence, by = "Location")
+ipd.roc.p <- mb.gather(ipd.roc.p)
+colnames(ipd.roc.p)[2] <- "ROC prevalance"
+# Join them together. 
+ipd.ip <- right_join(ipd.prev, ipd.roc.p, by = "Location")
+ipd.ip <- right_join(ipd.ip, ipd.incidence, by = "Location")
+ipd.ip <- right_join(ipd.ip, ipd.roc.i, by = "Location")
+
 
 # For AD
-ad.incidence <- as.data.frame(read_csv("AD-I-B.csv",col_names = TRUE))
-ad.prev <- as.data.frame(read_csv("AD-P-B.csv",col_names = TRUE))
+ad.incidence <- as.data.frame(read_csv("./rawdata/AD-I-B.csv",col_names = TRUE))
+ad.prev <- as.data.frame(read_csv("./rawdata/AD-P-B.csv",col_names = TRUE))
+
+ad.roc.i <- as.data.frame(read_csv("./rawdata/AD-I-B-RoC.csv",col_names = TRUE))
+
+ad.roc.p <- as.data.frame(read_csv("./rawdata/AD-P-B-RoC.csv",col_names = TRUE))
 
 # Run function and change name
 ad.incidence <- mb.gather(ad.incidence)
 colnames(ad.incidence)[2] <- "incidence"
+
+ad.roc.i <- mb.gather(ad.roc.i)
+colnames(ad.roc.i)[2] <- "ROC incidence"
+
 ad.prev <- mb.gather(ad.prev)
 colnames(ad.prev)[2] <- "prevalance"
 
-ad.ip <- right_join(ad.prev, ad.incidence, by = "Location")
+ad.roc.p <- mb.gather(ad.roc.p)
+colnames(ad.roc.p)[2] <- "ROC prevalance"
+# Join them together. 
+ad.ip <- right_join(ad.prev, ad.roc.p, by = "Location")
+ad.ip <- right_join(ad.ip, ad.incidence, by = "Location")
+ad.ip <- right_join(ad.ip, ad.roc.i, by = "Location")
+
+
+
+plot(ad.ip$incidence,ad.ip$prevalance)
+plot(ipd.ip$incidence,ipd.ip$prevalance)
+plot(mnd.ip$incidence,mnd.ip$prevalance)
 
 ```
 
