@@ -87,12 +87,42 @@ mb.gather <- function (x) {
 
 setwd("~/globalmicrobiome")
 # files nwed to be in the owrking directory
+
+# For MND
 mnd.incidence <- as.data.frame(read_csv("MND-I-B.csv",col_names = TRUE))
 mnd.prev <- as.data.frame(read_csv("MND-P-B.csv",col_names = TRUE))
+
+# Run function and change name
 mnd.incidence <- mb.gather(mnd.incidence)
+colnames(mnd.incidence)[2] <- "incidence"
 mnd.prev <- mb.gather(mnd.prev)
+colnames(mnd.prev)[2] <- "prevalance"
 
+mnd.ip <- right_join(mnd.prev, mnd.incidence, by = "Location")
 
+# For IPD
+ipd.incidence <- as.data.frame(read_csv("PD-I-B.csv",col_names = TRUE))
+ipd.prev <- as.data.frame(read_csv("PD-P-B.csv",col_names = TRUE))
+
+# Run function and change name
+ipd.incidence <- mb.gather(ipd.incidence)
+colnames(ipd.incidence)[2] <- "incidence"
+ipd.prev <- mb.gather(ipd.prev)
+colnames(ipd.prev)[2] <- "prevalance"
+
+ipd.ip <- right_join(ipd.prev, ipd.incidence, by = "Location")
+
+# For AD
+ad.incidence <- as.data.frame(read_csv("AD-I-B.csv",col_names = TRUE))
+ad.prev <- as.data.frame(read_csv("AD-P-B.csv",col_names = TRUE))
+
+# Run function and change name
+ad.incidence <- mb.gather(ad.incidence)
+colnames(ad.incidence)[2] <- "incidence"
+ad.prev <- mb.gather(ad.prev)
+colnames(ad.prev)[2] <- "prevalance"
+
+ad.ip <- right_join(ad.prev, ad.incidence, by = "Location")
 
 ```
 
