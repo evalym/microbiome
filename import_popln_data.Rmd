@@ -275,51 +275,52 @@ ad.p <- list( ad.p.12, ad.p.13,ad.p.14,ad.p.15,ad.p.16,ad.incidence) %>% reduce(
 library(reshape)
 as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
-
+require(cowplot)
+theme_set(theme_cowplot(font_size=12)) # reduce default font size
 
 mnd.i.melt = melt(mnd.i, id = 'Location')
 mnd.i.melt$variable <- as.numeric.factor(mnd.i.melt$variable)
-ggplot(mnd.i.melt, aes(x = variable, y = value, colour = Location)) + 
+p1 <- ggplot(mnd.i.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="mnd Incidence") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
 mnd.p.melt = melt(mnd.i, id = 'Location')
 mnd.p.melt$variable <- as.numeric.factor(mnd.p.melt$variable)
-ggplot(mnd.p.melt, aes(x = variable, y = value, colour = Location)) + 
+p2 <-  ggplot(mnd.p.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="mnd Prevalance") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
 ipd.i.melt = melt(ipd.i, id = 'Location')
 ipd.i.melt$variable <- as.numeric.factor(ipd.i.melt$variable)
-ggplot(ipd.i.melt, aes(x = variable, y = value, colour = Location)) + 
+p3 <- ggplot(ipd.i.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="ipd Incidence") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
 ipd.p.melt = melt(ipd.i, id = 'Location')
 ipd.p.melt$variable <- as.numeric.factor(ipd.p.melt$variable)
-ggplot(ipd.p.melt, aes(x = variable, y = value, colour = Location)) + 
+p4 <-  ggplot(ipd.p.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="ipd Prevalance") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
 ad.i.melt = melt(ad.i, id = 'Location')
 ad.i.melt$variable <- as.numeric.factor(ad.i.melt$variable)
-ggplot(ad.i.melt, aes(x = variable, y = value, colour = Location)) + 
+p5 <-  ggplot(ad.i.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="AD Incidence") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
 ad.p.melt = melt(ad.i, id = 'Location')
 ad.p.melt$variable <- as.numeric.factor(ad.p.melt$variable)
-ggplot(ad.p.melt, aes(x = variable, y = value, colour = Location)) + 
+p6 <- ggplot(ad.p.melt, aes(x = variable, y = value, colour = Location)) + 
   geom_line() + 
   ylab(label="AD Prevalance") + 
-  xlab("Year")
+  xlab("Year") + theme(legend.position="none")
 
-
-
+final <- plot_grid(p1, p2,p3,p4,p5,p6, labels = c('A', 'B','C', 'D','E', 'F'),ncol = 2)
+ggsave("overview.jpg", final) 
 ```
 
