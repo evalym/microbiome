@@ -81,9 +81,6 @@ githubdata_phyloseq = read_biom2phyloseq(githubdata_biom)
 
 ```
 
-```{r Import GitHUb file (metada)}
-read.table
-```
 
 ```{r Microbiome Data Import Draft}
 #import_biom("~/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom") 
@@ -280,6 +277,6 @@ merge_OTU_intersect <- function(physeq, group){
 
 ```
 
-```{r }
+```{r OTU table read}
 
 ```
