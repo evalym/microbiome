@@ -281,11 +281,17 @@ merge_OTU_intersect <- function(physeq, group){
 ```
 
 #Read phyloseq object
-```{r Pseq read}
+```{r Taxonomic filtering}
 #Methods obtained from Callahan et al.
 
+#Show taxonomic ranks in the phyloseq object
 rank_names(githubdata_phyloseq)
 
+#Create table showing the phyla present in the table 
+table(tax_table(githubdata_phyloseq)[, "Phylum"], exclude = NULL)
+#It is noted here that some phyla are named following a different denomination system
+
+#Remove unchar
 
 
 
@@ -297,6 +303,8 @@ Files downloaded from the emp ftp directory could not be reecognised a JSON or H
 This file was used as a test to verify the working order of certain sections of the code.
 
 Table selected to run code ("/Users/Muriel/Downloads/emp_deblur_150bp.subset_2k.rare_5000.biom") does not feature sample data - it may be necessary to look into other files or acquire the sample data from another file using the sample references
+
+Some of the phyla in the table 
 
 
 
