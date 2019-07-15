@@ -333,6 +333,11 @@ github_filtered
 prevdf_filtered = apply(X = otu_table(github_filtered),
                MARGIN = ifelse(taxa_are_rows(github_filtered), yes = 1, no = 2),
                FUN = function(x){sum(x > 0)})
+
+prevdf_filtered = data.frame(Prevalence = prevdf_filtered,
+                    TotalAbundance = taxa_sums(github_filtered),
+                    tax_table(github_filtered))
+
 plyr::ddply(prevdf_filtered, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 
 ```
