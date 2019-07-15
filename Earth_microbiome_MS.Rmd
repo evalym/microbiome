@@ -323,6 +323,18 @@ prevdf = data.frame(Prevalence = prevdf,
 #Create table dispaying the average prevalence of each phyla per sample and the total reads for all phyla in the data frame
 plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 
+#Filter out low-prevalance phyla
+  #1. Define phyla to filter
+filterPhyla = c("p__Caldiserica", "p__Deferribacteres", "p__LD1", "p__MVP-21", "p__OctSpA1-106", "p__TPD-58", "p__SC4", "p__VHS-B3-43", "p__WS1" )
+  #2. Filter entries
+github_filtered = subset_taxa(githubdata_phyloseq, !Phylum %in% filterPhyla)
+github_filtered
+  #3. Create data frame in R Markdown for easier comparison (see prevdf)
+prevdf_filtered = apply(X = otu_table(github_filtered),
+               MARGIN = ifelse(taxa_are_rows(github_filtered), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+plyr::ddply(prevdf_filtered, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+
 ```
 
 #READ ME - Problems encountered
