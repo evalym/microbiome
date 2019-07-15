@@ -281,6 +281,20 @@ merge_OTU_intersect <- function(physeq, group){
 ```
 
 #Read phyloseq object
+```{r Phyloseq object - first read}
+#Methods from MRD microbiome file
+#Print phyloseq object to check its component parts
+print(githubdata_phyloseq)
+
+#Check sparsity of physeq data
+kable(head(tax_table(githubdata_phyloseq)))
+tax_table(githubdata_phyloseq)
+
+
+#summarize_phyloseq(githubdata_phyloseq)
+#The above code ran unsuccessfully due to the fact that the data does not include sample data
+```
+
 ```{r Taxonomic filtering}
 #Methods obtained from Callahan et al.
 
