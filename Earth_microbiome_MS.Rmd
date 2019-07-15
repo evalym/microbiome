@@ -74,10 +74,10 @@ library(biomformat)
 ##Microbiome Data Import
 ```{r Microbiome Data Import}
 #file.choose() has been chosen here to take away any errors pertaining to the file path while investigating the files from the ftp directory
-githubdata_biom = file.choose()
+githubdata_biom <- file.choose()
 
 #This function transforms a biom file into a phyloseq class object
-githubdata_phyloseq = read_biom2phyloseq(githubdata_biom)
+githubdata_phyloseq <- read_biom2phyloseq(githubdata_biom)
 
 ```
 
@@ -108,6 +108,9 @@ githubdata_phyloseq = read_biom2phyloseq(githubdata_biom)
 #colnames(x)
 #matrix_element_type(x)
 #biom_data(x)
+
+#ftpdata_silva_qrbiom = import_qiime("/Users/Muriel/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom")
+#ftpdata_silva_phyloseq = read_biom2phyloseq(ftpdata_silva_qrbiom)
 
 ```
 
@@ -278,7 +281,13 @@ merge_OTU_intersect <- function(physeq, group){
 ```
 
 #Read phyloseq object
-```{r OTU table read}
+```{r Pseq read}
+#Methods obtained from Callahan et al.
+
+rank_names(githubdata_phyloseq)
+
+
+
 
 ```
 
