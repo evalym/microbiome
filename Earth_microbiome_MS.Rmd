@@ -21,7 +21,7 @@ knitr::opts_knit$set(root.dir = '~/globalmicrobiome')
 #libraries for data processing and formatting
 	library(foreign)
 	library(stargazer)
-	library(psych)
+	library(githubdata_phyloseqych)
 	library(plyr)
 	library(xtable)
 	library(car) #
@@ -295,6 +295,8 @@ tax_table(githubdata_phyloseq)
 #The above code ran unsuccessfully due to the fact that the data does not include sample data
 ```
 
+
+#Taxonomic filtering
 ```{r Taxonomic filtering}
 #Methods obtained from Callahan et al.
 
@@ -303,22 +305,34 @@ rank_names(githubdata_phyloseq)
 
 #Create table showing the phyla present in the table 
 table(tax_table(githubdata_phyloseq)[, "Phylum"], exclude = NULL)
-#It is noted here that some phyla are named following a different denomination system
+#It is noted here that some phyla are named following a different convention
 
-#Remove unchar
+#Remove ambiguous phyla (if any)
+githubdata_phyloseq <- subset_taxa(githubdata_phyloseq, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
 
+#Compute prevalence of each Phyla, store as data.frame
+prevdf = apply(X = otu_table(githubdata_phyloseq),
+               MARGIN = ifelse(taxa_are_rows(githubdata_phyloseq), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
 
+#Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(githubdata_phyloseq),
+                    tax_table(githubdata_phyloseq))
+
+#Create table dispaying the average prevalence of each phyla per sample and the total reads for all phyla in the data frame
+plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 
 ```
 
-#READ ME
+#READ ME - Problems encountered
 
 Files downloaded from the emp ftp directory could not be reecognised a JSON or HDF5 file as required by the biomformat package and therefore could not be read in R. This is a significant problem that explains the use of a GitHub file (emp_deblur_150bp.subset_2k.rare_5000.biom").
 This file was used as a test to verify the working order of certain sections of the code.
 
 Table selected to run code ("/Users/Muriel/Downloads/emp_deblur_150bp.subset_2k.rare_5000.biom") does not feature sample data - it may be necessary to look into other files or acquire the sample data from another file using the sample references
 
-Some of the phyla in the table 
+Some of the phyla in the table are named following a differenct convention. If this file is used for the data this will have to be kept in mind. It is possible that other files for EMP data also share this problem. 
 
 
 
