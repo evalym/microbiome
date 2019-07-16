@@ -329,7 +329,7 @@ prevdf = data.frame(Prevalence = prevdf,
                     tax_table(githubdata_phyloseq))
 
 #Create table dispaying the average prevalence of each phyla per sample and the total reads for all phyla in the data frame
-plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+plyr::ddply(prevdf, "Phylum (unfiltered)", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 
 #Filter out low-prevalance phyla
   #1. Define phyla to filter
@@ -374,6 +374,20 @@ print(github_filtered)
 
 ```
 Considering the comparison created above, I believe this method is not ideal unless the average prevalence of phyla within the data set is considered.
+
+```{r Prevalence Calculations}
+#Calculate the mean prevalence from the prevdf
+```
+
+```{r Phyloseq filtering}
+#Function is simple and could be an alternative - need to check how it fits into code
+#https://rdrr.io/github/vmikk/metagMisc/src/R/phyloseq_filter.R#sym-phyloseq_filter_prevalence
+
+#github_filtered3 <- phyloseq_filter_prevalence(githubdata_phyloseq, prev.trh = 0.05, abund.trh = NULL,
+  #threshold_condition = "OR", abund.type = "mean")
+
+#print(github_filtered3)
+```
 
 #Merge OTUs
 ```{r Merge OTUs}
