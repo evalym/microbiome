@@ -1,0 +1,384 @@
+---
+title: "Earth_microbiome_MS"
+author: "Muriel Sirgi"
+date: "03/07/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setting the working directory in globalmicrobiome (GitHub directory)
+knitr::opts_knit$set(root.dir = '~/globalmicrobiome')
+
+```
+
+
+##Data Set-up
+```{r R Library Set-up}
+
+## Get data
+
+#libraries for data processing and formatting
+	library(foreign)
+	library(stargazer)
+	library(psych)
+	library(plyr)
+	library(xtable)
+	library(car) #
+
+	#library(dplyr)
+
+	library(scales)
+	library(reshape)
+	library(gmodels) #
+  library(nnet)
+	library(tidyr) #works well with dplyr data pipelines
+
+	library(sjmisc)
+	library(RColorBrewer)
+  library(htmltools) #
+	library(broom)
+
+  #library(hrbrthemes)
+library(gcookbook)
+library(tidyverse)
+ #library(gdtools)
+
+#The phyloseq package seeks to address issues with multiple microbiome analysis packages by providing a set of functions that internally manage the organizing, linking, storing, and analyzing of phylogenetic sequencing data. In general, this package is used for UniFrac analyses.
+library(phyloseq)
+library(microbiome)
+library(knitr)
+library(ggpubr)
+#library(phylogeo)
+library(dplyr)
+#Graphing package used in phyloseq. To edit the default setting of a plot, you need to use functions in this package.
+library(ggplot2)
+library(viridis) 
+library(cowplot)
+# install.packages("devtools")
+library(devtools)
+# install_github("opisthokonta/tsnemicrobiota")
+library(tsnemicrobiota)
+# check you've installed this library
+library(forcats)
+#package required for biomformat
+library(jsonlite)
+library(Matrix)
+library(rhdf5)
+#package used to work with biom files in R 
+library(biomformat)
+
+
+```
+
+##Microbiome Data Import
+```{r Microbiome Data Import}
+#file.choose() has been chosen here to take away any errors pertaining to the file path while investigating the files from the ftp directory
+githubdata_biom <- file.choose()
+
+#This function transforms a biom file into a phyloseq class object
+githubdata_phyloseq <- read_biom2phyloseq(githubdata_biom)
+
+```
+
+
+```{r Microbiome Data Import Draft}
+#import_biom("~/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom") 
+#import_biom(BIOMfilename = '~/globalmicrobiome/emp_cr_gg_13_8.release1.biom')
+#biomfile <- file.choose("~/globalmicrobiome/emp_cr_gg_13_8.release1.biom")
+#read_biom2phyloseq(biom.file = biomfile)
+#import_biom('~/globalmicrobiome/emp_cr_gg_13_8.qc_filtered.biom')
+#import_biom('~/globalmicrobiome/emp_cr_silva_16S_123.qc_filtered.biom'
+
+#silva_closedref_biom <- system.file("extdata", "/Users/Muriel/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom", package = "phyloseq")
+#sample_metadata("/Users/Muriel/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom")
+
+#silva_closedref_biom = system.file("extdata", "~/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom", package = "biomformat")
+
+#silva_data = sample_metadata(silva_closedref_biom)
+
+#biomfile = "/Users/Muriel/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom"
+#read_biom(biomfile)
+#x = read_biom(biomfile)
+#header(x)
+#biom_shape(x)
+#nrow(x)
+#ncol(x)
+#rownames(x)
+#colnames(x)
+#matrix_element_type(x)
+#biom_data(x)
+
+#ftpdata_silva_qrbiom = import_qiime("/Users/Muriel/globalmicrobiome/emp_cr_silva_16S_123qc_filtered.biom")
+#ftpdata_silva_phyloseq = read_biom2phyloseq(ftpdata_silva_qrbiom)
+
+```
+
+#Microbiome Functions (Nik)
+```{r functions (Nik)}
+##### FUNCTIONS ########
+##### Normalization #######
+
+# Better rounding function than R's base round
+myround <- function(x) { trunc(x + 0.5) }
+
+# Scales reads by 
+# 1) taking proportions
+# 2) multiplying by a given library size of n
+# 3) rounding 
+# Default for n is the minimum sample size in your library
+# Default for round is floor
+scale_reads <- function(physeq, n = min(sample_sums(physeq)), round = "floor") {
+  
+  # transform counts to n
+  physeq.scale <- transform_sample_counts(physeq, 
+    function(x) {(n * x/sum(x))}
+  )
+  
+  # Pick the rounding functions
+  if (round == "floor"){
+    otu_table(physeq.scale) <- floor(otu_table(physeq.scale))
+  } else if (round == "round"){
+    otu_table(physeq.scale) <- myround(otu_table(physeq.scale))
+  }
+  
+  # Prune taxa and return new phyloseq object
+  physeq.scale <- prune_taxa(taxa_sums(physeq.scale) > 0, physeq.scale)
+  return(physeq.scale)
+}
+
+
+##### ADONIS ###########
+
+# Function to run adonis test on a phyloseq object and a variable from metadata
+# Make sure OTU data is standardized/normalized before 
+phyloseq_to_adonis <- function(physeq, distmat = NULL, dist = "bray", formula) {
+  
+  if(!is.null(distmat)) {
+    phydist <- distmat
+  } else {
+    phydist <- phyloseq::distance(physeq, dist)
+  }
+  
+  metadata <- as(sample_data(physeq), "data.frame")
+  
+  # Adonis test
+  f <- reformulate(formula, response = "phydist")
+  adonis.test <- adonis(f, data = metadata)
+  print(adonis.test)
+
+  # Run homogeneity of dispersion test if there is only 1 variable
+  if (grepl("\\+", formula)) {
+    l <- list(
+      dist = phydist, 
+      formula = f, 
+      adonis = adonis.test
+    )
+  } else {
+    group <- metadata[ ,formula]
+    beta <- betadisper(phydist, group)
+    disper.test = permutest(beta)
+    print(disper.test)
+    
+    l <- list(
+      dist = phydist, 
+      formula = f, 
+      adonis = adonis.test, 
+      disper = disper.test
+    )
+  }
+  return (l)
+}
+
+########## Bar Plots #################
+
+# This function takes a phyloseq object, agglomerates OTUs to the desired taxonomic rank, 
+# prunes out OTUs below a certain relative proportion in a sample (ie 1% ) 
+# and melts the phyloseq object into long format which is suitable for ggplot stacked barplots.
+taxglom_and_melt <- function(physeq, taxrank, prune){
+  
+  # Agglomerate all otu's by given taxonomic level
+  pglom <- tax_glom(physeq, taxrank = taxrank)
+  
+  # Create a new phyloseq object which removes taxa from each sample below the prune parameter
+  pglom_prune <- transform_sample_counts(pglom,function(x) {x/sum(x)})
+  otu_table(pglom_prune)[otu_table(pglom_prune) < prune] <- 0
+  pglom_prune <- prune_taxa(taxa_sums(pglom_prune) > 0, pglom_prune)
+  
+  # Melt into long format and sort by taxonomy
+  physeq_long <- psmelt(pglom_prune)
+  physeq_long <- physeq_long[order(physeq_long[ ,taxrank]), ]
+
+  # Return long data frame
+  return(physeq_long)
+}
+
+
+###### Merge functions ############
+
+# Merge samples by averaging OTU counts instead of summing
+merge_samples_mean <- function(physeq, group, round){
+  # Calculate the number of samples in each group
+  group_sums <- as.matrix(table(sample_data(physeq)[ ,group]))[,1]
+  
+  # Merge samples by summing
+  merged <- merge_samples(physeq, group)
+  
+  # Divide summed OTU counts by number of samples in each group to get mean
+  # Calculation is done while taxa are columns
+  x <- as.matrix(otu_table(merged))
+  if(taxa_are_rows(merged)){ x<-t(x) }
+
+  # Pick the rounding functions
+  if (round == "floor"){
+    out <- floor(t(x/group_sums))
+  } else if (round == "round"){
+    out <- myround(t(x/group_sums))
+  }
+  
+  # Return new phyloseq object with taxa as rows
+  out <- otu_table(out, taxa_are_rows = TRUE)
+  otu_table(merged) <- out
+  return(merged)
+}
+
+# Merge samples, just including OTUs that were present in all merged samples
+# Call this function before running merge_samples()
+merge_OTU_intersect <- function(physeq, group){
+  
+  # Make sure we're not starting with more taxa than we need 
+  physeq <- prune_taxa(taxa_sums(physeq) > 0, physeq)
+  
+  s <- data.frame(sample_data(physeq))
+  l <- levels(s[,group])
+  o <- otu_table(physeq)
+  
+  # Loop through each category
+  for (cat in 1:length(l)) {
+ 
+    # Get the index of all samples in that category
+    w <- which(s[,group]==l[cat])
+   
+    # subset to just those columns of OTU table
+    cat.sub<-o[,w]
+    print(dim(cat.sub))
+    
+    # Find the indices of 0's in the OTU table
+    zeros <- apply(cat.sub, 1, function(r) any(r == 0))
+    
+    # If an OTU had a 0 in at least one sample, change all samples to 0
+    cat.sub[zeros,] <- 0
+  }
+  
+  o[,w] <- cat.sub
+  otu_table(physeq) <- o
+  
+  return(physeq)
+  
+}
+
+
+```
+
+#Read phyloseq object
+```{r Phyloseq object - first read}
+#Methods from MRD microbiome file
+#Print phyloseq object to check its component parts
+print(githubdata_phyloseq)
+
+#Check sparsity of physeq data
+kable(head(tax_table(githubdata_phyloseq)))
+tax_table(githubdata_phyloseq)
+
+
+#summarize_phyloseq(githubdata_phyloseq)
+#The above code ran unsuccessfully due to the fact that the data does not include sample data
+```
+
+#Check/Prune OTUs
+```{r Check and prune OTUs}
+any(taxa_sums(githubdata_phyloseq) == 0)
+#FALSE, therefore pruning is unecessary.
+```
+
+The following methods are arguably different options that can be used to work with reads of low-prevalence phyla. These are taxonomic filtering (removing low-prevalence phyla), prevalence filtering (removing phyla that do not meet a set prevalence), and agglomerating taxa/merging OTUs. 
+
+
+#Taxonomic filtering
+```{r Taxonomic filtering}
+#Methods obtained from Callahan et al.
+
+#Show taxonomic ranks in the phyloseq object
+rank_names(githubdata_phyloseq)
+
+#Create table showing the phyla present in the table 
+table(tax_table(githubdata_phyloseq)[, "Phylum"], exclude = NULL)
+#It is noted here that some phyla are named following a different convention
+
+#Remove ambiguous phyla (if any)
+githubdata_phyloseq <- subset_taxa(githubdata_phyloseq, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
+
+#Compute prevalence of each Phyla, store as data.frame
+prevdf = apply(X = otu_table(githubdata_phyloseq),
+               MARGIN = ifelse(taxa_are_rows(githubdata_phyloseq), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+#Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(githubdata_phyloseq),
+                    tax_table(githubdata_phyloseq))
+
+#Create table dispaying the average prevalence of each phyla per sample and the total reads for all phyla in the data frame
+plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+
+#Filter out low-prevalance phyla
+  #1. Define phyla to filter
+filterPhyla = c("p__Caldiserica", "p__Deferribacteres", "p__LD1", "p__MVP-21", "p__OctSpA1-106", "p__TPD-58", "p__SC4", "p__VHS-B3-43", "p__WS1" )
+  #2. Filter entries
+github_filtered = subset_taxa(githubdata_phyloseq, !Phylum %in% filterPhyla)
+github_filtered
+  #3. Create data frame in R Markdown to display filtered prevalence to allow for an easier comparison (see prevdf)
+prevdf_filtered = apply(X = otu_table(github_filtered),
+               MARGIN = ifelse(taxa_are_rows(github_filtered), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+prevdf_filtered = data.frame(Prevalence = prevdf_filtered,
+                    TotalAbundance = taxa_sums(github_filtered),
+                    tax_table(github_filtered))
+
+plyr::ddply(prevdf_filtered, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+
+```
+
+```{r Prevalence filtering}
+#This method could be preferred to filter out plow-prevalence phyla
+
+#Define the prevalence threshold
+  #Considering the diversity of this data set I will arbitrarily set the prevalence   threshold at 5% (due to its size, I also considered 10%)
+prevalence_threshold = 0.05 * nsamples(githubdata_phyloseq)
+prevalence_threshold
+
+#
+
+
+```
+
+#READ ME
+
+####Problems encountered
+
+Files downloaded from the emp ftp directory could not be reecognised a JSON or HDF5 file as required by the biomformat package and therefore could not be read in R. This is a significant problem that explains the use of a GitHub file (emp_deblur_150bp.subset_2k.rare_5000.biom").
+This file was used as a test to verify the working order of certain sections of the code.
+
+Table selected to run code ("/Users/Muriel/Downloads/emp_deblur_150bp.subset_2k.rare_5000.biom") does not feature sample data - it may be necessary to look into other files or acquire the sample data from another file using the sample references
+
+Some of the phyla in the table are named following what appears to be a different convention. However, further research indicates thas these are uncharacterised phyla (likely with no cultured representatives) present in the Silva and Greengenes databases. If this file is used for the data this will have to be kept in mind.
+
+####Notes
+
+I believe taxonomic filtering should not be arbitrary. This can be done by manually choosing phyla and writing them into the function but can likely be done mathematically by choosing a minimum prevalence (total or average)
+Prevalence filtering can be used as an alternative (should be consistent with the gut microbiome filtering?)
+See functions as an alternative
+
+AC1 (doi: https://dx.doi.org/10.1073%2Fpnas.1015676108)
+https://www.uniprot.org/taxonomy/1052815
