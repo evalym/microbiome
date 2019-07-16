@@ -287,8 +287,8 @@ merge_OTU_intersect <- function(physeq, group){
 print(githubdata_phyloseq)
 
 #Check sparsity of physeq data
-kable(head(tax_table(githubdata_phyloseq)))
-tax_table(githubdata_phyloseq)
+#kable(head(tax_table(githubdata_phyloseq)))
+#tax_table(githubdata_phyloseq)
 
 
 #summarize_phyloseq(githubdata_phyloseq)
@@ -329,7 +329,7 @@ filterPhyla = c("p__Caldiserica", "p__Deferribacteres", "p__LD1", "p__MVP-21", "
   #2. Filter entries
 github_filtered = subset_taxa(githubdata_phyloseq, !Phylum %in% filterPhyla)
 github_filtered
-  #3. Create data frame in R Markdown for easier comparison (see prevdf)
+  #3. Create data frame in R Markdown to display filtered prevalence to allow for an easier comparison (see prevdf)
 prevdf_filtered = apply(X = otu_table(github_filtered),
                MARGIN = ifelse(taxa_are_rows(github_filtered), yes = 1, no = 2),
                FUN = function(x){sum(x > 0)})
@@ -342,14 +342,21 @@ plyr::ddply(prevdf_filtered, "Phylum", function(df1){cbind(mean(df1$Prevalence),
 
 ```
 
-#READ ME - Problems encountered
+#READ ME
+
+####Problems encountered
 
 Files downloaded from the emp ftp directory could not be reecognised a JSON or HDF5 file as required by the biomformat package and therefore could not be read in R. This is a significant problem that explains the use of a GitHub file (emp_deblur_150bp.subset_2k.rare_5000.biom").
 This file was used as a test to verify the working order of certain sections of the code.
 
 Table selected to run code ("/Users/Muriel/Downloads/emp_deblur_150bp.subset_2k.rare_5000.biom") does not feature sample data - it may be necessary to look into other files or acquire the sample data from another file using the sample references
 
-Some of the phyla in the table are named following a differenct convention. If this file is used for the data this will have to be kept in mind. It is possible that other files for EMP data also share this problem. 
+Some of the phyla in the table are named following what appears to be a different convention. However, further research indicates thas these are uncharacterised phyla (likely with no cultured representatives) present in the Silva and Greengenes databases. If this file is used for the data this will have to be kept in mind.
 
+####Notes
 
+I believe taxonomic filtering should not be arbitrary. This can be done by manually choosing phyla and writing them into the function but can likely be done mathematically by choosing a minimum prevalence (total or average)
+Prevalence filtering can be used as an alternative (should be consistent with the gut microbiome filtering?)
+
+AC1 (doi: https://dx.doi.org/10.1073%2Fpnas.1015676108)
 
