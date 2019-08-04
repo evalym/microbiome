@@ -1232,3 +1232,184 @@ head(abundances(pseq)["Faecalibacterium prausnitzii et rel.",])
 
 ```
 
+
+
+###### INFO FOR PAPER - Specific to MND
+```{r Eggerthella lenta}
+
+# Eggerthella is a bacterial genus of Actinobacteria
+
+# List of Genera in the Actinobacteria Phylum
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Actinobacteria
+print(taxa)
+
+# Abundance of Eggerthella
+head(abundances(pseq)["Eggerthella lenta et rel.",])
+
+pseq.bac <- subset_taxa(pseq, Phylum == "Actinobacteria")
+
+pseq.bac.g <- subset_taxa(pseq.bac, Genus == "Eggerthella lenta et rel.")
+
+# Pick the taxa abundances for a given sample
+# samplename <- sample_names(pseq)[,"Eggerthella lenta et rel."]
+
+# Pick abundances for a particular taxon
+# eg.abundances <- abundances(pseq, transform='compositional')[, samplename]
+
+
+```
+
+
+```{r Coprobacillus cateniformis}
+
+# Coprobacillus cateniformis is a bacterium from the genus of Coprobacillus
+# Coprobacillus is of phylum Firmicutes 
+# Phylum = Firmicutes 
+# Class = Erysipelotrichi
+
+# This class of the Firmicutes Phylum isnt present in this data
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacilli
+print(taxa)
+
+```
+
+
+```{r Parabacteroides goldsteinii and Parabacteroides distasonis}
+
+# Parabacteroides goldsteinii 
+# Phylum = Bacteriodetes
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacteroidetes
+print(taxa)
+
+# Parabacteroides distasonis et rel. is present
+# RESEARCH DIFFERENCES
+
+```
+
+
+```{r Lactobacillus murinus and Lactobacillus gasseri}
+
+# Lactobacillus murinus and gasseri
+# Phylum = Firmicutes
+# Class = Bacilli
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacilli
+print(taxa)
+
+# "Lactobacillus gasseri et rel."     
+# "Lactobacillus plantarum et rel."  
+#       -  closely related
+# "Lactobacillus salivarius et rel." 
+#       -  closely related according to https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-018-0440-5
+# "Lactococcus"
+
+```
+
+
+```{r Prevotella melaninogenica}
+
+# Prevotella melaninogenica
+# Phylum = Bacteroidetes
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacteroidetes
+print(taxa)
+
+```
+
+
+```{r Eisenbergiella tayi}
+
+# Eisenbergiella tayi
+# Phylum = Firmicutes
+# Class = Clostridia
+# Order = Clostridiales
+# Family = Lachnospiraceae
+# Produce butyric acid
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$
+print(taxa)
+
+# Not found
+
+```
+
+```{r Subdoligranulum variabile}
+
+# Subdoligranulum variabile
+# Phylum = Clostridium cluster IV
+# Closely related to Faecalibacterium prausnitzii
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Clostridium_cluster_IV
+print(taxa)
+
+```
+
+```{r Ruminococcus torques}
+
+# Ruminococcus torques
+# Phylum = Firmicutes
+# Class = Clostridia
+# Order = Clostridiales
+# Family = Ruminococcaceae / Lachnospiraceae
+# Genus = Ruminococcus
+
+# Closely related to "Ruminococcus gnavus et rel."   
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$
+print(taxa)
+
+```
+
+```{r Akkermansia muciniphila}
+
+# Akkermansia muciniphila
+# Phylum = Verrucomicrobia
+# Genus = Akkermansia
+
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Verrucomicrobia
+print(taxa)
+
+```
+
+
+```{r Paper relative abundance}
+
+paper <- subset_taxa(pseq, Phylum =="Actinobacteria" | Phylum =="Bacteroidetes"| Phylum =="Bacilli"  | Phylum =="Clostridium cluster IV"  | Phylum =="Verrucomicrobia")
+
+p.f <- aggregate_taxa(paper, "Phylum")
+
+p.f.rel <- microbiome::transform(p.f, "compositional")
+
+plot.p.f.rel <- plot_composition(p.f.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic"))
+
+plot.p.f.rel + scale_fill_brewer(palette = "Paired") 
+
+plot(plot.p.f.rel + scale_fill_brewer(palette = "Paired") )
+
+```
+
+
+
+```{r Paper relative abundance}
+
+paper <- subset_taxa(pseq, Genus =="Eggerthella lenta et rel." | Genus =="Parabacteroides distasonis et rel." | Genus =="Lactobacillus plantarum et rel."  | Genus =="Lactobacillus salivarius et rel." | Genus =="Prevotella melaninogenica et rel." | Genus =="Subdoligranulum variable at rel." | Genus =="Ruminococcus gnavus et rel." | Genus =="Akkermansia")
+
+
+p.g.rel <- microbiome::transform(paper, "compositional")
+
+plot.p.g.rel <- plot_composition(p.g.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic"))
+
+plot.p.g.rel + scale_fill_brewer(palette = "Paired") 
+
+plot(plot.p.g.rel + scale_fill_brewer(palette = "Paired") )
+
+paper@tax_table
+
+```
+
+
+
+
+

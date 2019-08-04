@@ -1059,7 +1059,66 @@ plot.p.f.rel + scale_fill_brewer(palette = "Paired")
 ```
 
 
-###### INFO FOR PAPER
+###### INFO FOR PAPER - Specific to MND
+
+```{r Taxa ranks in data set}
+
+# Show available ranks in the dataset
+rank_names(ps)
+
+```
+
+```{r Taxa ranks in data set}
+
+# Create table, number of features for each phyla
+table(tax_table(pseq)[, "Phylum"], exclude = NULL)
+
+```
+
+
+```{r Violin plot}
+
+# How many genera would be present after filtering?
+length(get_taxa_unique(pseq, taxonomic.rank = "Genus"))
+ps3 = tax_glom(pseq, "Genus", NArm = TRUE)
+
+## VIOLIN PLOT EXAMPLE
+ 
+# Defining a custom plot function, plot_abundance(), that uses phyloseq’s function to define a relative abundance graphic
+# use this to compare more easily differences in scale and distribution of the abundance values in our phyloseq object before and after transformation
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Eggerthella lenta et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
+
+```
+
+```{r Load packages}
+
+library("knitr")
+library("BiocStyle")
+
+```
+
+
 ```{r Eggerthella lenta}
 
 # Eggerthella is a bacterial genus of Actinobacteria
@@ -1075,11 +1134,29 @@ pseq.bac <- subset_taxa(pseq, Phylum == "Actinobacteria")
 
 pseq.bac.g <- subset_taxa(pseq.bac, Genus == "Eggerthella lenta et rel.")
 
-# Pick the taxa abundances for a given sample
-samplename <- sample_names(pseq)[,"Eggerthella lenta et rel."]
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Eggerthella lenta et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
 
-# Pick abundances for a particular taxon
-# eg.abundances <- abundances(pseq, transform='compositional')[, samplename]
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
+
 
 
 ```
@@ -1111,6 +1188,29 @@ print(taxa)
 # Parabacteroides distasonis et rel. is present
 # RESEARCH DIFFERENCES
 
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Parabacteroides distasonis et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
+
 ```
 
 
@@ -1130,16 +1230,63 @@ print(taxa)
 #       -  closely related according to https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-018-0440-5
 # "Lactococcus"
 
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Lactobacillus gasseri et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
+
+
 ```
 
 
 ```{r Prevotella melaninogenica}
 
-# Prevotella melaninogenica
+# Prevotella melaninogenica et rel.
 # Phylum = Bacteroidetes
 
 taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Bacteroidetes
 print(taxa)
+
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Prevotella melaninogenica et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
 
 ```
 
@@ -1169,6 +1316,29 @@ print(taxa)
 taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Clostridium_cluster_IV
 print(taxa)
 
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Faecalibacterium prausnitzii et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
+
 ```
 
 ```{r Ruminococcus torques}
@@ -1182,8 +1352,31 @@ print(taxa)
 
 # Closely related to "Ruminococcus gnavus et rel."   
 
-taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$
+taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$`Clostridium cluster XIVa`
 print(taxa)
+
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Ruminococcus gnavus et rel."))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
 
 ```
 
@@ -1195,6 +1388,29 @@ print(taxa)
 
 taxa <- map_levels(NULL, "Phylum", "Genus", pseq)$Verrucomicrobia
 print(taxa)
+
+plot_abundance = function(pseq,title = "",
+                          Facet = "Genus", Color = "Phylum"){
+  # Arbitrary subset, based on Phylum, for plotting
+  p1f = subset_taxa(pseq, Genus %in% c("Akkermansia"))
+  mphyseq = psmelt(p1f)
+  mphyseq <- subset(mphyseq, Abundance > 0)
+  ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance",
+                              color = Color, fill = Color)) +
+    geom_violin(fill = NA) +
+    geom_point(size = 1, alpha = 0.3,
+               position = position_jitter(width = 0.3)) +
+    facet_wrap(facets = Facet) + scale_y_log10()+
+    theme(legend.position="none")
+}
+
+# Transform to relative abundance. Save as new object.
+ps3ra = transform_sample_counts(ps3, function(x){x / sum(x)})
+
+plotBefore = plot_abundance(ps3,"")
+plotAfter = plot_abundance(ps3ra,"")
+# Combine each plot into one graphic.
+grid.arrange(nrow = 2,  plotBefore, plotAfter)
 
 ```
 
@@ -1230,7 +1446,37 @@ plot.p.g.rel + scale_fill_brewer(palette = "Paired")
 
 plot(plot.p.g.rel + scale_fill_brewer(palette = "Paired") )
 
+paper@tax_table
+
 ```
+
+
+Note: Use of transformed/normalised and/or filtered datasets is optional however, it is recommended. IPCO internally check if there are zero abundance features and also check for common features (OTUs/genus/species) between reference taxonomy and queried dataset.
+```{r IPCO}
+
+# 1. Load reference data
+install_github("https://github.com/IPCO-Rlibrary/IPCO")
+library(ade4)
+
+# 2. Normalise/Transform data
+# Hellinger transformation
+transform_data(pseq, relab)
+
+
+# 3. Inferring functionality
+# IPCO(R, L, Q)
+# R dataset where rows are functions/pathways and columns are samples
+# L dataset where rows are taxa/OTUs and columns are the same samples as dataset R
+# Q dataset where rows are taxa/OTUs common between L and Q and columns are the samples for which functionality will be inferred
+
+# Requires The references functional (R) and its paired taxonomy dataset (L) and the taxonomy dataset (Q) for which functions need to be inferred
+
+IPCO(R, L, Q)
+
+
+# 4. Checking for significant covariance between reference taxonomic and functional datasets 
+```
+
 
 
 
