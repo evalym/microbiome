@@ -329,7 +329,7 @@ prevdf = data.frame(Prevalence = prevdf,
                     tax_table(githubdata_phyloseq))
 
 #Create table dispaying the average prevalence of each phyla per sample and the total reads for all phyla in the data frame
-plyr::ddply(prevdf, "Phylum (unfiltered)", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 
 #Filter out low-prevalance phyla
   #1. Define phyla to filter
