@@ -394,7 +394,9 @@ Considering the comparison created above, I believe this method is not ideal unl
 
 ```
 
-
+```{r Sample data import}
+geodata <- read_tsv("/Users/Muriel/Downloads/emp_qiime_mapping_subset_2k.tsv")
+```
 
 #READ ME
 
