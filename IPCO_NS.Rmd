@@ -1,0 +1,124 @@
+---
+title: "Untitled"
+author: "NSharma"
+date: "5 May 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+	library(foreign)
+	library(stargazer)
+	library(psych)
+	library(plyr)
+	library(xtable)
+	library(car)
+	#library(dplyr)
+	library(scales)
+	library(reshape) 
+	library(gmodels)
+	library(nnet)
+	library(tidyr)
+	library(sjmisc)
+	library(RColorBrewer)
+  library(htmltools)
+	library(broom)
+
+library(gcookbook)
+library(tidyverse)
+ #library(gdtools)
+
+#The phyloseq package seeks to address issues with multiple microbiome analysis packages by providing a set of functions that internally manage the organizing, linking, storing, and analyzing of phylogenetic sequencing data. In general, this package is used for UniFrac analyses.
+library(phyloseq)
+library(microbiome)
+library(knitr)
+library(ggpubr)
+#library(phylogeo)
+library(dplyr)
+#Graphing package used in phyloseq. To edit the default setting of a plot, you need to use functions in this package.
+library(ggplot2)
+library(viridis) 
+library(cowplot)
+# install.packages("devtools")
+library(devtools)
+# install_github("opisthokonta/tsnemicrobiota")
+library(tsnemicrobiota)
+# check you've installed this library
+library(forcats)
+library(IPCO)
+library(phylosmith)
+library(phyloseq)
+
+data(atlas1006)   
+pseq <- baseline(atlas1006)
+
+##Step 1: Extract the required matrix from Phyloseq object
+##first convert the OTU level phyloseq object to species/genus level phyloseq object. Depending on the phyloseq version the taxrank or taxlevel parameter would be used.
+#taxlevel parameter is probably for older version to the best of my knowledge
+
+#phyloseq_genus <- tax_glom(pseq, taxlevel="Genus")
+
+#taxrank parameter is in the latest version
+phyloseq_genus <- tax_glom(pseq, taxrank="Genus")
+
+#If the above step is already done, then you can start from here.
+#Convert phyloseq genus/species level object to matrix
+genus_table <- as(otu_table(phyloseq_genus), "matrix")
+
+##Step 2: Using IPCO
+#load refernce data IPCO_Healthy/IPCO_HMP
+library(IPCO)
+data(IPCO_Healthy)
+
+#Do normalisation/transform as suggested as an where required. If the phyloseq data is already normalised and doesnot wish to renormalise, then the user doesnot have to follow IPCO normalisation.
+#We recommend Hellinger transformation. To be used on count/prop/relative abundance data
+ref_genus <- transform_data(IPCO_Healthy$Genus,"relab")
+ref_func <- transform_data(IPCO_Healthy$MetaCyc,"prop")
+##or
+ref_func <- transform_data(IPCO_Healthy$KEGG,"prop")
+
+#if query genus table is count data
+query_genus <- transform_data(genus_table,"count") 
+
+#Run IPCO
+#Note: all samples should be in columns and features (func/taxa) in rows. If not, transpose the matrix
+inferred_MetaCyc <- IPCO(ref_func,ref_genus,query_genus)
+
+
+
+data <- data("IPCO_Healthy")
+
+write_phyloseq(pseq, type = "all", path = getwd())
+
+
+tdata <- transform_data(data, type = "proportion")
+tdata <- transform_data(IPCO_Healthy, proportion)
+
+
+
+
+
+
+
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
