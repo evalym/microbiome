@@ -1,28 +1,13 @@
 ---
 title: "Untitled"
 author: "NSharma"
-date: "5 May 2016"
+date: "2019"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 
-	library(foreign)
-	library(stargazer)
-	library(psych)
-	library(plyr)
-	library(xtable)
-	library(car)
-	#library(dplyr)
-	library(scales)
-	library(reshape) 
-	library(gmodels)
-	library(nnet)
-	library(tidyr)
-	library(sjmisc)
-	library(RColorBrewer)
-  library(htmltools)
-	library(broom)
+
 
 library(gcookbook)
 library(tidyverse)
@@ -71,54 +56,42 @@ library(IPCO)
 data(IPCO_Healthy)
 
 #Do normalisation/transform as suggested as an where required. If the phyloseq data is already normalised and doesnot wish to renormalise, then the user doesnot have to follow IPCO normalisation.
+
 #We recommend Hellinger transformation. To be used on count/prop/relative abundance data
 ref_genus <- transform_data(IPCO_Healthy$Genus,"relab")
-ref_func <- transform_data(IPCO_Healthy$MetaCyc,"prop")
+ref_func <- transform_data(IPCO_Healthy$MetaCyc,"proportion")
+
+#ref_func <- filter_functionality(ref_func, "metacyc",IPCO_Healthy$MetaCyc_coverage,threshold=0.4) # Filtering
+
+ref_func <- filter_functionality(ref_func, "metacyc", IPCO_Healthy$MetaCyc_coverage)
 ##or
-ref_func <- transform_data(IPCO_Healthy$KEGG,"prop")
+#ref_func <- transform_data(IPCO_Healthy$KEGG,"proportion")
 
 #if query genus table is count data
-query_genus <- transform_data(genus_table,"count") 
+#query_genus <- transform_data(genus_table,"count") 
 
 #Run IPCO
 #Note: all samples should be in columns and features (func/taxa) in rows. If not, transpose the matrix
-inferred_MetaCyc <- IPCO(ref_func,ref_genus,query_genus)
+inferred_MetaCyc <- IPCO(ref_func,ref_genus,genus_table)
 
+library(made4)
 
+overview(inferred_MetaCyc)
 
-data <- data("IPCO_Healthy")
+k.coa<- ord(inferred_MetaCyc, type="coa")
+summary(k.coa$ord)
 
-write_phyloseq(pseq, type = "all", path = getwd())
+plotgenes(k.coa)
 
+heatmap(inferred_MetaCyc)
 
-tdata <- transform_data(data, type = "proportion")
-tdata <- transform_data(IPCO_Healthy, proportion)
+p <- plot_ly(inferred_MetaCyc = volcano, type = "heatmap")
 
+levelplot(inferred_MetaCyc[1:ncol(inferred_MetaCyc),ncol(inferred_MetaCyc):1])
 
-
-
-
-
+coinertia_resuls <- check_coinertia(ref_func,genus_table)
 
 
 ```
 
 ## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
