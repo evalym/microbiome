@@ -10,6 +10,9 @@ Things to complete in this script:
 
 1. group the pathways
 
+names <- '2PHENDEG'
+x <- subset(inferred_MetaCyc, rownames(inferred_MetaCyc) == names)
+
 2. Will this tidy up the figures?
 
 3. tidy up the figures anyway! 
