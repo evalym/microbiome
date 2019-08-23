@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
-
+setwd("/Users/Nik/globalmicrobiome")
 
 library(gcookbook)
 library(tidyverse)
@@ -74,14 +74,83 @@ ref_func <- filter_functionality(ref_func, "metacyc", IPCO_Healthy$MetaCyc_cover
 #Note: all samples should be in columns and features (func/taxa) in rows. If not, transpose the matrix
 inferred_MetaCyc <- IPCO(ref_func,ref_genus,genus_table)
 
+# Create mnd variable
+# grabs the nationality from phyloseq
+con.class <- get_variable(pseq, "nationality" )
+
+# check you've installed this library
+library(forcats)
+
+# this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
+mnd.class <- fct_collapse(con.class, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+
+# reorder
+mnd.class <- factor(mnd.class, levels = (c("LOW", "MEDIUM", "HIGH")))
+
+
 library(made4)
+library(ade4)
 
 overview(inferred_MetaCyc)
 
+```
+
+
+```{r , include=FALSE}
+
+#p <- overview(inferred_MetaCyc,classvec=mnd.class, labels=c("red", "blue", "yellow"))
+ 
+#Correspondence Analysis
+#The function ord simplifies the running of ordination methods such as principal component, correspondence or non-symmetric correspondence analysis. It provides a wrapper
+#which can call each of these methods in ade4. To run a correspondence analysis [6] on
+#this dataset.
+
+
 k.coa<- ord(inferred_MetaCyc, type="coa")
 summary(k.coa$ord)
+p <- plot(k.coa)
+
+p <- plot(k.coa, classvec=mnd.class, arraycol=c("red", "blue", "yellow" ), genecol="grey3")
+
+```
+
+```{r , include=FALSE}
+plotarrays(k.coa, arraylabels=mnd.class)
 
 plotgenes(k.coa)
+
+k.coa2<-ord(inferred_MetaCyc, classvec=mnd.class)
+p <- plot(k.coa2)
+
+#Classification and Class Prediction using Between Group
+#Analysis
+#Between Group Analysis (BGA) is a supervised classification method [3]. The basis
+#of BGA is to ordinate the groups rather than the individual samples. In tests on two
+#microarray gene expression datasets, BGA performed comparably to supervised classification methods, including support vector machines and artifical neural networks [2].
+#To train a dataset, use bga, the projection of test data can be assessed using suppl.
+#One leave out cross validation can be perfo
+
+k.bga<-bga(inferred_MetaCyc, type="coa", classvec=mnd.class)
+between.graph(k.bga, ax=1) # Show the separation on the first axes(ax
+
+#Meta-analysis of microarray gene expression
+#Coinertia analysis cia [4] has been successfully applied to the cross-platform comparison
+#(meta-analysis) of microarray gene expression datasets [8]. CIA is a multivariate method
+#that identifies trends or co-relationships in multiple datasets which contain the same
+#samples. That is either the rows or the columns of a matrix must be ”matchable”. CIA
+#can be applied to datasets where the number of variables (genes) far exceeds the number
+#of samples (arrays) such is the case with microarray analyses. cia calls coinertia in
+#the ade4 package. See the CIA vignette for more details on this method.
+
+#By default the variables (genes) are labelled with the rownames of the matrix. Typically these are spot IDs or Affymetrix accession numbers which are not very easy to
+#interpret. But these can be easily labeled by your own labels. For example its often
+#useful to labels using HUGO gene symbols. We find the Bioconductor annotate and
+#annaffy annotation packages are very useful for this. Alternatively we also use biomaRt
+#or Resourcerer or the Stanford Source database.
+#In this example we provide annotation from the Source database in khan$annotation.
+#The gene symbol are in the column khan$annotation$Symbol
+
+#plot(k.bga, genelabels=gene.symbs)    need to define gene;symbs
 
 heatmap(inferred_MetaCyc)
 
