@@ -5,6 +5,21 @@ date: "2019"
 output: html_document
 ---
 
+
+Things to complete in this script: 
+
+1. group the pathways
+
+2. Will this tidy up the figures?
+
+3. tidy up the figures anyway! 
+
+4. stats
+
+
+
+
+
 ```{r setup, include=FALSE}
 
 setwd("/Users/Nik/globalmicrobiome")
@@ -115,12 +130,16 @@ p <- plot(k.coa, classvec=mnd.class, arraycol=c("red", "blue", "yellow" ), genec
 ```
 
 ```{r , include=FALSE}
-plotarrays(k.coa, arraylabels=mnd.class)
+#   plotarrays(k.coa, arraylabels=mnd.class)
 
 plotgenes(k.coa)
 
 k.coa2<-ord(inferred_MetaCyc, classvec=mnd.class)
 p <- plot(k.coa2)
+```
+
+```{r , include=FALSE}
+
 
 #Classification and Class Prediction using Between Group
 #Analysis
@@ -151,12 +170,19 @@ between.graph(k.bga, ax=1) # Show the separation on the first axes(ax
 #The gene symbol are in the column khan$annotation$Symbol
 
 #plot(k.bga, genelabels=gene.symbs)    need to define gene;symbs
+```
+
+
+
+```{r , include=FALSE}
 
 heatmap(inferred_MetaCyc)
 
-p <- plot_ly(inferred_MetaCyc = volcano, type = "heatmap")
+library(pheatmap)
 
-levelplot(inferred_MetaCyc[1:ncol(inferred_MetaCyc),ncol(inferred_MetaCyc):1])
+pheatmap(inferred_MetaCyc)
+
+pheatmap(inferred_MetaCyc, cluster_cols = mnd.class)
 
 coinertia_resuls <- check_coinertia(ref_func,genus_table)
 
