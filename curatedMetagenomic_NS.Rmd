@@ -1,0 +1,58 @@
+---
+title: "curatedMetagenomicData"
+author: "NSharma"
+date: "26/09/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+
+#BiocManager::install("curatedMetagenomicData")
+#BiocManager::install("ExperimentHub")
+library(ExperimentHub)
+library(curatedMetagenomicData)
+suppressPackageStartupMessages(library(ExperimentHub))
+library(phyloseq)
+library(microbiome)
+
+eh = ExperimentHub()
+myquery = query(eh, "curatedMetagenomicData")
+
+?combined_metadata
+View(combined_metadata)
+table(combined_metadata$disease)
+
+# Get the stool samples
+esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
+
+# merge
+eset <- mergeData(esl)
+
+
+head( pData(eset ) )
+
+pseq = ExpressionSet2phyloseq(eset )
+
+summarize_phyloseq(pseq)
+
+sample_data( pseq )[1:6, 1:5]
+
+
+pseq.subset <- subset_samples(pseq, country == "SWE")
+
+pseq.subset <- subset_samples(pseq, disease == "healthy" & age_category =="adult")
+
+s <- rownames(subset(meta(pseq), country == "SWE" ))
+
+sample_variables(pseq)
+# get the countres
+head(get_variable(pseq, sample_variables(pseq)[5]))
+
+temp1 <- get_variable(pseq, sample_variables(pseq)[5])
+
+
+
+```
+
+## R Markdown

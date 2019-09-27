@@ -5,6 +5,15 @@ output: html_notebook
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
+
+BiocManager::install("curatedMetagenomicData")
+
+BiocManager::install("ExperimentHub")
+library(ExperimentHub)
+library(curatedMetagenomicData)
+
+
+
 Combining 2 dat asets
 
 mergedGP = merge_samples(TwinsUK,atlas1006)
