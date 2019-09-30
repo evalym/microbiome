@@ -36,12 +36,15 @@ pseq = ExpressionSet2phyloseq(eset )
 
 summarize_phyloseq(pseq)
 
-sample_data( pseq )[1:6, 1:5]
+
+
+
 
 
 pseq.subset <- subset_samples(pseq, country == "SWE")
-
 pseq.subset <- subset_samples(pseq, disease == "healthy" & age_category =="adult")
+
+
 
 s <- rownames(subset(meta(pseq), country == "SWE" ))
 
@@ -56,3 +59,86 @@ temp1 <- get_variable(pseq, sample_variables(pseq)[5])
 ```
 
 ## R Markdown
+
+```{r}
+# Create mnd variable
+# grabs the nationality from phyloseq
+test <- get_variable(pseq, "country" )
+
+# check you've installed this library
+library(forcats)
+table(test)
+# this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
+
+# Not used BGD Bangladesh , CAN Canada, CHN, China. DNK denmark, FJI Figi, HUN Hungry, ISL isle of man , MDG, MNG mongolia, PER Iran, RUS RUSSIA, 
+
+
+test <- fct_collapse(test, LOW = c("NOR","SWE","FIN") , MEDIUM = c("ITA","AUT","DEU","GBR","ESP","FRA","LUX","NLD"), HIGH = c("USA") )
+
+#test <- fct_collapse(test, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+
+# reorder
+test <- factor(test, levels = (c("LOW", "MEDIUM", "HIGH")))
+levels(test)
+
+# creates a new variable in the phyloseq called mnd
+sample_data(pseq)$mnd = test
+
+# checks that it has worked.
+get_variable(pseq, "mnd")
+
+```
+
+```{r MND table summary}
+
+table(sample_data(pseq)$mnd)
+
+table(sample_data(pseq)$country)
+
+```
+## Check OTUs/Phylums
+Prune(remove) taxa because we want to remove OTUs/taxa that aren't in any of the samples
+Don't need to prune this taxa because OTUs are found in all samples.
+Check this everytime you use the subset_samples function because of the pseq object being filtered. 
+```{r check OTUs}
+# Check if any OTUs are not present in any samples
+any(taxa_sums(pseq) == 0)
+# FALSE, therefore, OTUs are found in all samples and we don't need to prune the taxa. If the answer is TRUE, some OTUs are not present in any samples. This is usually the case when data is subset to remove some samples. OTUs unique to those sample are not removed along with the samples. Therefore, it is important to check this everytime the phyloseq object is filtered for samples using `subset_samples` function.
+
+head(meta(pseq))
+
+```
+
+## Prepare Data for Alpha Diversity Visualisation
+```{r prepare data for alpha diversity visualisation}
+
+# Prepare data for vizualisation
+
+# Alpha diversity again
+png("alpha.png")
+
+pseq2 <- pseq
+
+#this is a work around. Need to check
+otu_table(pseq2) <- otu_table(round(as((otu_table(pseq2)), "matrix")), taxa_are_rows(pseq2))
+estimate_richness(pseq2)
+
+tab <- diversities(pseq2, index = "all")
+stargazer(tab, type = "text",summary = NULL)
+kable(head(tab))
+plot(tab)
+dev.off()
+
+# Get metadata
+pseq.meta <- meta(pseq)
+kable(head(pseq.meta))
+stargazer(pseq.meta, type = "text",summary = NULL)
+
+# Add the diversity table to metadata
+pseq.meta$Shannon <- tab$shannon 
+pseq.meta$InverseSimpson <- tab$inverse_simpson
+pseq.meta$fisher <- tab$fisher
+pseq.meta$chao1 <- tab$chao1
+
+```
+
