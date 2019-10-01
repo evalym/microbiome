@@ -29,30 +29,10 @@ esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
 # merge
 eset <- mergeData(esl)
 
+# the relab=FALSE is essential as it Absolute Raw Count Data
+pseq = ExpressionSet2phyloseq(eset,relab=FALSE ,simplify = TRUE, phylogenetictree = TRUE)
 
-head( pData(eset ) )
-
-pseq = ExpressionSet2phyloseq(eset )
-
-summarize_phyloseq(pseq)
-
-
-
-
-
-
-pseq.subset <- subset_samples(pseq, country == "SWE")
-pseq.subset <- subset_samples(pseq, disease == "healthy" & age_category =="adult")
-
-
-
-s <- rownames(subset(meta(pseq), country == "SWE" ))
-
-sample_variables(pseq)
-# get the countres
-head(get_variable(pseq, sample_variables(pseq)[5]))
-
-temp1 <- get_variable(pseq, sample_variables(pseq)[5])
+#For the MetaPhlAn2 bugs datasets (but not other data types), you gain a lot of taxonomy-aware, ecological analysis and plotting by conversion to a phyloseq class object. curatedMetagenomicData provides the ExpressionSet2phyloseq() function to make this easy:
 
 
 
@@ -84,16 +64,23 @@ levels(test)
 # creates a new variable in the phyloseq called mnd
 sample_data(pseq)$mnd = test
 
+
+
+
+
+
 # checks that it has worked.
-get_variable(pseq, "mnd")
+get_variable(pseq.subset, "mnd")
+
+
 
 ```
 
 ```{r MND table summary}
 
-table(sample_data(pseq)$mnd)
+table(sample_data(pseq.subset)$mnd)
 
-table(sample_data(pseq)$country)
+table(sample_data(pseq.subset)$country)
 
 ```
 ## Check OTUs/Phylums
@@ -102,7 +89,7 @@ Don't need to prune this taxa because OTUs are found in all samples.
 Check this everytime you use the subset_samples function because of the pseq object being filtered. 
 ```{r check OTUs}
 # Check if any OTUs are not present in any samples
-any(taxa_sums(pseq) == 0)
+any(taxa_sums(pseq.subset) == 0)
 # FALSE, therefore, OTUs are found in all samples and we don't need to prune the taxa. If the answer is TRUE, some OTUs are not present in any samples. This is usually the case when data is subset to remove some samples. OTUs unique to those sample are not removed along with the samples. Therefore, it is important to check this everytime the phyloseq object is filtered for samples using `subset_samples` function.
 
 head(meta(pseq))
@@ -112,18 +99,52 @@ head(meta(pseq))
 ## Prepare Data for Alpha Diversity Visualisation
 ```{r prepare data for alpha diversity visualisation}
 
+# https://bioconductor.riken.jp/packages/3.5/data/experiment/vignettes/curatedMetagenomicData/inst/doc/curatedMetagenomicData.html
 # Prepare data for vizualisation
+
+# Remove   everything without a country
+pseq.subset <- subset_samples(pseq, !is.na(mnd))
+
+
+# Pick the core (>0.1% relative abundance in >50% of the samples)
+pseq.csubset <- core(pseq.subset, detection = 0.1/100, prevalence = 50/100)
+
+any(taxa_sums(pseq.csubset) == 0)
+
+
+
+
+fpseq.core <- subset_taxa( pseq.core, !is.na(Phylum))
+
+
+keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
+summary(keepotu)
+
+fpseq <- subset_taxa(pseq, keepotu)
+
+loman.filt = subset_taxa(fpseq, keepotu & !is.na(Strain))
+plot_heatmap(fpseq, method="PCoA", distance="bray")
+
+#keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
+#summary(keepotu)
+
+# subset_taxa(loman.pseq, keepotu)
+#lfilt <- subset_taxa(pseq, keepotu & !is.na(Strain))
+#plot_heatmap(lfilt, method="PCoA", distance="bray")
+
+#lfilt <- subset_taxa(pseq, is.na(Class) & !is.na(Phylum))
+
+#any(taxa_sums(lfilt) == 0)
+
 
 # Alpha diversity again
 png("alpha.png")
+  
 
-pseq2 <- pseq
+tab <- diversities(pseq.csubset)
 
-#this is a work around. Need to check
-otu_table(pseq2) <- otu_table(round(as((otu_table(pseq2)), "matrix")), taxa_are_rows(pseq2))
-estimate_richness(pseq2)
-
-tab <- diversities(pseq2, index = "all")
+ 
+tab <- diversities(pseq.csubset, index = "all")
 stargazer(tab, type = "text",summary = NULL)
 kable(head(tab))
 plot(tab)
