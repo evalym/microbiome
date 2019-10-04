@@ -106,21 +106,63 @@ head(meta(pseq))
 
 # Remove   everything without a country
 pseq.subset <- subset_samples(pseq, !is.na(mnd))
+pseq.subset <- subset_samples(pseq, disease == "healthy")
+
+keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
+f.pseq <- subset_taxa(pseq, keepotu)
+
+any(taxa_sums(pseq.c) == 0)
+
+genus.pseq <- subset_taxa( pseq.subset, !is.na(Genus))
+phylum.pseq <- subset_taxa( pseq, is.na(Class) & !is.na(Phylum))
 
 
+taxonomy <- tax_table(genus.pseq)
 # Pick the core (>0.1% relative abundance in >50% of the samples)
-pseq.csubset <- core(pseq.subset, detection = 0.1/100, prevalence = 50/100)
+pseq.subsetc <- core(pseq.subset, detection = 0.1/100, prevalence = 50/100)
+
+map_levels(NULL, "Phylum","Genus",pseq.c)
+
+diversities(phylum.pseq, index = "all")
 
 
-wt = UniFrac(pseq.csubset, weighted=TRUE, normalized=FALSE, 
-             parallel=FALSE, fast=TRUE)
-plot(hclust(wt), main="Weighted UniFrac distances")
+
+png("alpha.png")
+
+tab <- diversities(pseq.c, index = "all")
+stargazer(tab, type = "text",summary = NULL)
+
+tab <- diversities(pseq.subsetc, index = "Shannon")
+tab <- diversities(phylum.pseq, index = "all")
+stargazer(tab, type = "text",summary = NULL)
+kable(head(tab))
+plot(tab)
+dev.off()
+
+# Get metadata
+pseq.meta <- meta(phylum.pseq)
+kable(head(pseq.meta))
+stargazer(pseq.meta, type = "text",summary = NULL)
+
+# Add the diversity table to metadata
+pseq.meta$Shannon <- tab$shannon 
+pseq.meta$InverseSimpson <- tab$inverse_simpson
+pseq.meta$fisher <- tab$fisher
+pseq.meta$chao1 <- tab$chao1
+#wt = UniFrac(pseq.csubset, weighted=TRUE, normalized=FALSE, 
+#             parallel=FALSE, fast=TRUE)
+#plot(hclust(wt), main="Weighted UniFrac distances")
+
+library(ggpubr)
+
+p1 <- ggviolin(pseq.meta, x = "mnd", y = "Shannon",
+ add = "boxplot", fill = "mnd", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+  print(p1)
+ggsave("nation_violin_shannon.png")
 
 
 
-any(taxa_sums(pseq.csubset) == 0)
 
-fpseq.core <- subset_taxa( pseq.core, !is.na(Phylum))
 
 
 keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
@@ -152,7 +194,7 @@ barplot(sort(taxa_sums(pseq.csubset), TRUE)[1:20] / nsamples(pseq.csubset),
 tab <- diversities(pseq.csubset)
 
  
-tab <- diversities(pseq.csubset, index = "all")
+tab <- diversities(pseq.subset, index = "all")
 stargazer(tab, type = "text",summary = NULL)
 kable(head(tab))
 plot(tab)
