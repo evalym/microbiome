@@ -267,7 +267,10 @@ test <- get_variable(pseq, "nationality" )
 library(forcats)
 
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
-test <- fct_collapse(test, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+# test <- fct_collapse(test, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+
+test <- fct_collapse(test, LOW = c("EasternEurope", "SouthEurope") , MEDIUM = c("CentralEurope"), HIGH = c("US", "UKIE", "Scandinavia") )
+
 
 # reorder
 test <- factor(test, levels = (c("LOW", "MEDIUM", "HIGH")))
@@ -1066,6 +1069,18 @@ plot.p.f.rel + scale_fill_brewer(palette = "Paired")
 # Show available ranks in the dataset
 rank_names(ps)
 
+test <- fct_collapse(test, LOW = c("EasternEurope", "SouthEurope") , MEDIUM = c("CentralEurope"), HIGH = c("US", "UKIE", "Scandinavia") )
+
+# reorder
+test <- factor(test, levels = (c("LOW", "MEDIUM", "HIGH")))
+levels(test)
+
+# creates a new variable in the phyloseq called mnd
+sample_data(pseq)$mnd = test
+
+# checks that it has worked.
+get_variable(pseq, "mnd")
+
 ```
 
 ```{r Taxa ranks in data set}
@@ -1450,7 +1465,7 @@ paper@tax_table
 
 ```
 
-
+##IPCO
 Note: Use of transformed/normalised and/or filtered datasets is optional however, it is recommended. IPCO internally check if there are zero abundance features and also check for common features (OTUs/genus/species) between reference taxonomy and queried dataset.
 ```{r IPCO}
 
@@ -1460,8 +1475,9 @@ library(ade4)
 
 # 2. Normalise/Transform data
 # Hellinger transformation
-transform_data(pseq, relab)
+# transform_data(pseq, relab)
 
+temp <- data("IPCO_Healthy")
 
 # 3. Inferring functionality
 # IPCO(R, L, Q)
