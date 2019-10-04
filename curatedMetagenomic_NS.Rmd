@@ -36,6 +36,8 @@ pseq = ExpressionSet2phyloseq(eset,relab=FALSE ,simplify = TRUE, phylogenetictre
 
 
 
+
+
 ```
 
 ## R Markdown
@@ -109,10 +111,14 @@ pseq.subset <- subset_samples(pseq, !is.na(mnd))
 # Pick the core (>0.1% relative abundance in >50% of the samples)
 pseq.csubset <- core(pseq.subset, detection = 0.1/100, prevalence = 50/100)
 
+
+wt = UniFrac(pseq.csubset, weighted=TRUE, normalized=FALSE, 
+             parallel=FALSE, fast=TRUE)
+plot(hclust(wt), main="Weighted UniFrac distances")
+
+
+
 any(taxa_sums(pseq.csubset) == 0)
-
-
-
 
 fpseq.core <- subset_taxa( pseq.core, !is.na(Phylum))
 
@@ -122,8 +128,8 @@ summary(keepotu)
 
 fpseq <- subset_taxa(pseq, keepotu)
 
-loman.filt = subset_taxa(fpseq, keepotu & !is.na(Strain))
-plot_heatmap(fpseq, method="PCoA", distance="bray")
+# This doesnt run. 
+# plot_heatmap(fpseq, method="PCoA", distance="bray") 
 
 #keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
 #summary(keepotu)
@@ -140,6 +146,8 @@ plot_heatmap(fpseq, method="PCoA", distance="bray")
 # Alpha diversity again
 png("alpha.png")
   
+barplot(sort(taxa_sums(pseq.csubset), TRUE)[1:20] / nsamples(pseq.csubset),
+        ylab = "Total counts", las = 2)
 
 tab <- diversities(pseq.csubset)
 
