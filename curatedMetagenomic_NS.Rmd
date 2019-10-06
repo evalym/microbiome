@@ -16,14 +16,11 @@ suppressPackageStartupMessages(library(ExperimentHub))
 library(phyloseq)
 library(microbiome)
 library(forcats)
-
+library(stargazer)
+library(ggpubr)
 
 eh = ExperimentHub()
 myquery = query(eh, "curatedMetagenomicData")
-
-?combined_metadata
-View(combined_metadata)
-table(combined_metadata$disease)
 
 # Get the stool samples
 esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
@@ -73,9 +70,9 @@ get_variable(pseq, "mnd")
 
 ```{r MND table summary}
 
-table(sample_data(pseq.subset)$mnd)
+table(sample_data(pseq)$mnd)
 
-table(sample_data(pseq.subset)$country)
+table(sample_data(pseq)$country)
 
 ```
 ## Check OTUs/Phylums
@@ -84,7 +81,7 @@ Don't need to prune this taxa because OTUs are found in all samples.
 Check this everytime you use the subset_samples function because of the pseq object being filtered. 
 ```{r check OTUs}
 # Check if any OTUs are not present in any samples
-any(taxa_sums(pseq.subset) == 0)
+any(taxa_sums(pseq) == 0)
 # FALSE, therefore, OTUs are found in all samples and we don't need to prune the taxa. If the answer is TRUE, some OTUs are not present in any samples. This is usually the case when data is subset to remove some samples. OTUs unique to those sample are not removed along with the samples. Therefore, it is important to check this everytime the phyloseq object is filtered for samples using `subset_samples` function.
 
 head(meta(pseq))
@@ -98,111 +95,45 @@ head(meta(pseq))
 # Prepare data for vizualisation
 
 # Remove   everything without a country
-pseq.subset <- subset_samples(pseq, !is.na(mnd))
-pseq.subset <- subset_samples(pseq, disease == "healthy")
+
 
 keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
-f.pseq <- subset_taxa(pseq, keepotu)
+pseq.f <- subset_taxa(pseq, keepotu)
+
+pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
+
+pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn")
+
+# These are useful is filtering. 
+#sample_variables(pseq.subset)
+#get_variable(pseq.subset, sample_variables(pseq.subset)[4])
 
 any(taxa_sums(pseq.c) == 0)
 
-genus.pseq <- subset_taxa( pseq.subset, !is.na(Genus))
-phylum.pseq <- subset_taxa( pseq, is.na(Class) & !is.na(Phylum))
+# run the diversities. 	keep an eye on this as only one is working
+tab <- diversities(pseq.subset, index = "Shannon")
 
-
-taxonomy <- tax_table(genus.pseq)
-# Pick the core (>0.1% relative abundance in >50% of the samples)
-pseq.subsetc <- core(pseq.subset, detection = 0.1/100, prevalence = 50/100)
-
-map_levels(NULL, "Phylum","Genus",pseq.c)
-
-diversities(phylum.pseq, index = "all")
-
-
-
-png("alpha.png")
-
-tab <- diversities(pseq.c, index = "all")
-stargazer(tab, type = "text",summary = NULL)
-
-tab <- diversities(pseq.subsetc, index = "Shannon")
-tab <- diversities(phylum.pseq, index = "all")
-stargazer(tab, type = "text",summary = NULL)
-kable(head(tab))
-plot(tab)
-dev.off()
 
 # Get metadata
-pseq.meta <- meta(phylum.pseq)
+pseq.meta <- meta(pseq.subset)
 kable(head(pseq.meta))
 stargazer(pseq.meta, type = "text",summary = NULL)
 
 # Add the diversity table to metadata
 pseq.meta$Shannon <- tab$shannon 
-pseq.meta$InverseSimpson <- tab$inverse_simpson
-pseq.meta$fisher <- tab$fisher
-pseq.meta$chao1 <- tab$chao1
-#wt = UniFrac(pseq.csubset, weighted=TRUE, normalized=FALSE, 
-#             parallel=FALSE, fast=TRUE)
-#plot(hclust(wt), main="Weighted UniFrac distances")
-
-library(ggpubr)
+#pseq.meta$InverseSimpson <- tab$inverse_simpson
+#pseq.meta$fisher <- tab$fisher
+#pseq.meta$chao1 <- tab$chao1
 
 p1 <- ggviolin(pseq.meta, x = "mnd", y = "Shannon",
  add = "boxplot", fill = "mnd", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
   print(p1)
-ggsave("nation_violin_shannon.png")
+#ggsave("nation_violin_shannon.png")
 
+# THis subsets the  genus and phylum. 
+#genus.pseq <- subset_taxa( pseq.subset, !is.na(Genus))
+#phylum.pseq <- subset_taxa( pseq, is.na(Class) & !is.na(Phylum))
 
-
-
-
-
-keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
-summary(keepotu)
-
-fpseq <- subset_taxa(pseq, keepotu)
-
-# This doesnt run. 
-# plot_heatmap(fpseq, method="PCoA", distance="bray") 
-
-#keepotu = genefilter_sample(pseq, filterfun_sample(topp(0.05)), A=5)
-#summary(keepotu)
-
-# subset_taxa(loman.pseq, keepotu)
-#lfilt <- subset_taxa(pseq, keepotu & !is.na(Strain))
-#plot_heatmap(lfilt, method="PCoA", distance="bray")
-
-#lfilt <- subset_taxa(pseq, is.na(Class) & !is.na(Phylum))
-
-#any(taxa_sums(lfilt) == 0)
-
-
-# Alpha diversity again
-png("alpha.png")
-  
-barplot(sort(taxa_sums(pseq.csubset), TRUE)[1:20] / nsamples(pseq.csubset),
-        ylab = "Total counts", las = 2)
-
-tab <- diversities(pseq.csubset)
-
- 
-tab <- diversities(pseq.subset, index = "all")
-stargazer(tab, type = "text",summary = NULL)
-kable(head(tab))
-plot(tab)
-dev.off()
-
-# Get metadata
-pseq.meta <- meta(pseq)
-kable(head(pseq.meta))
-stargazer(pseq.meta, type = "text",summary = NULL)
-
-# Add the diversity table to metadata
-pseq.meta$Shannon <- tab$shannon 
-pseq.meta$InverseSimpson <- tab$inverse_simpson
-pseq.meta$fisher <- tab$fisher
-pseq.meta$chao1 <- tab$chao1
 
 ```
 
