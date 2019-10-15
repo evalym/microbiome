@@ -19,6 +19,11 @@ library(forcats)
 library(stargazer)
 library(ggpubr)
 library(tidyverse)
+library(cowplot)
+library(vegan)
+library(broom)
+library(tsnemicrobiota)
+library(latex2exp)
 
 eh = ExperimentHub()
 myquery = query(eh, "curatedMetagenomicData")
@@ -44,6 +49,7 @@ orig_pseq <- pseq
 
 ```{r}
 # Create mnd variable
+pseq <- orig_pseq
 # grabs the nationality from phyloseq
 mnd.country <- get_variable(pseq, "country" )
 table(mnd.country)
@@ -51,7 +57,7 @@ table(mnd.country)
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
 # Not used BGD Bangladesh , CAN Canada, CHN, China. DNK denmark, FJI Figi, HUN Hungry, ISL isle of man , MDG, MNG mongolia, PER Iran, RUS RUSSIA, 
 
-mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN") , MEDIUM = c("ITA","AUT","DEU","GBR","ESP","FRA","LUX","NLD"), HIGH = c("USA") )
+mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DEN","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
 
 #mnd.country <- fct_collapse(mnd.country, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
 
@@ -69,13 +75,6 @@ get_variable(pseq, "mnd")
 
 ```
 
-```{r MND table summary}
-
-table(sample_data(pseq)$mnd)
-
-table(sample_data(pseq)$country)
-
-```
 ## Check OTUs/Phylums
 Prune(remove) taxa because we want to remove OTUs/taxa that aren't in any of the samples
 Don't need to prune this taxa because OTUs are found in all samples.
@@ -103,7 +102,9 @@ pseq.f <- subset_taxa(pseq, keepotu)
 
 pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 
-pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn")
+pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" & antibiotics_current_use != "yes")
+
+pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
 # These are useful is filtering. 
 #sample_variables(pseq.subset)
@@ -117,100 +118,14 @@ tab <- diversities(pseq.subset, index = "Shannon")
 
 # Get metadata
 pseq.meta <- meta(pseq.subset)
-kable(head(pseq.meta))
+#kable(head(pseq.meta))
 stargazer(pseq.meta, type = "text",summary = NULL)
 
-# Add the diversity table to metadata
-pseq.meta$Shannon <- tab$shannon 
-#pseq.meta$InverseSimpson <- tab$inverse_simpson
-#pseq.meta$fisher <- tab$fisher
-#pseq.meta$chao1 <- tab$chao1
-
-p1 <- ggviolin(pseq.meta, x = "mnd", y = "Shannon",
- add = "boxplot", fill = "mnd", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
-  print(p1)
-
-  ggsave("nation_violin_shannon.png")
-#ggsave("nation_violin_shannon.png")
 
 # THis subsets the  genus and phylum. 
 #genus.pseq <- subset_taxa( pseq.subset, !is.na(Genus))
 #phylum.pseq <- subset_taxa( pseq, is.na(Class) & !is.na(Phylum))
 
-
-```
-
-
-
-## Nationality Violin Plot
-```{r nationality violin plot}
-
-# Alpha diversity is the species richness of a place
-# High alpha diversity = high no. of species
-
-#pseq.meta$nationality <- factor(pseq.meta$country, levels = c("Scandinavia","EasternEurope","CentralEurope", "SouthEurope", "UKIE", "US"))
-
-
-
-# Violin plot
-# the number in the palettes must equal the number of groups in nationlaity.pairs
-#p1 <- ggviolin(pseq.meta, x = "nationality", y = "Shannon",
-# add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
-#   print(p1)
-# ggsave("nation_violin_shannon.png")
-
-# p2 <- ggviolin(pseq.meta, x = "nationality", y = "InverseSimpson",
-#  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
-# print(p2)
-# ggsave("nation_violin_simpson.png")
-
-# p3 <- ggviolin(pseq.meta, x = "nationality", y = "fisher",
-#  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("") + ylab("Fisher")
-# print(p3)
-# ggsave("nation_violin_fisher.png")
-
-# plot_grid(p1, p2, p3, align = "h" , ncol = 2, nrow = 2)
-# ggsave("nation_violin.png")
-
-```
-
-
-
-
-
-
-
-
-```{r}
-
-# 
-pseq <- pseq.subset
-# This isnt working. 
-p <- plot_richness(pseq, x="country", measures=c( "Shannon")) 
-
-ggsave("alpha_nationality.png")
-
-```
-
-
-## MND Violin Plot
-```{r mnd violin plot}
-
-
-# Add the diversity table to metadata
-pseq.meta$Shannon <- tab$shannon
-#pseq.meta$InverseSimpson <- tab$inverse_simpson
-
-
-# Compare differences in Shannon index between mnd group of the study subjects
-pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
-
-# Create a list of pairwise comaprisons
-mnd <- levels(pseq.meta$mnd) # get the variables
-
-# Make a pairwise list that we want to compare.
-mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
-mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
 
 
 # Shannon
@@ -219,261 +134,282 @@ p1 <- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", ad
 p1 <- p1 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND Prevalence") + theme(legend.position="none")
 print(p1)
 ggsave("mnd_violin__shannon_stats.png")
+  
+alpha_d <- function(pseq.subset) {
+   # gets the meta data 
+   pseq.meta <- meta(pseq.subset)
+   # generates the diversites
+   tab <- diversities(pseq.subset, index = "Shannon")
+   # creates Shannon
+   pseq.meta$Shannon <- tab$shannon
+   mnd <- levels(pseq.meta$mnd) # get the variables
+  # Make a pairwise list that we want to compare.
+  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
+  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
 
-# Inverse Simpson
-#p2 <- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "InverseSimpson", add = "boxplot", fill = "mnd", palette = c("yellow", "orange", "red"))
-#p2 <- p2 + stat_compare_means(comparisons = mnd.pairs) 
-#print(p2)
-#ggsave("mnd_violin_simpson.png")
+   # Compare differences in Shannon index between mnd group of the study subjects
+  pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
+  # on to the graphs!!!
+  p1 <-  ggviolin(pseq.meta, x = "mnd", y = "Shannon",
+ add = "boxplot", fill = "mnd", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+  p2<-   ggviolin(pseq.meta, x = "country", y = "Shannon",
+ add = "boxplot", fill = "country", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+# the number in the palettes must equal the number of groups in bmi.pairs
+  p3 <- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red"))
+  p3 <- p3 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND Prevalence") + theme(legend.position="none")
+  print(p1)
+  print(p2)
+  p4 <-plot_grid(p1, p2,p3, align = "h" , ncol = 3)
+
+}
+
+beta_d <- function(pseq.subset) {
+  p.low <- subset_samples(pseq.subset, mnd == "LOW")
+  p.low.d <- divergence(p.low)
+  p.med <- subset_samples(pseq.subset, mnd == "MEDIUM")
+  p.med.d <- divergence(p.med)
+  p.high <- subset_samples(pseq.subset, mnd == "HIGH")
+  p.high.d <- divergence(p.high)
+  p <- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
+  #plot(p)
+  # NMDS on the whole set???
+  pseq.ord <- ordinate(pseq.subset, "NMDS", "bray")
+  # Convert to compositional data
+  pseq.rel <- microbiome::transform(pseq.subset, "compositional")
+  otu <- abundances(pseq.rel)
+  meta <- meta(pseq.rel)
+  pseq.nmds <- ordinate(pseq.rel, "NMDS", "bray")
+  #NMDS ordination on Bray-Curtis distance
+  p1 = plot_ordination(pseq.subset, pseq.nmds, type = "taxa", color = "mnd", title = "Taxa by Phylum")
+  p1 + facet_wrap(~Phylum, 3)
+  p2 = plot_ordination(pseq.rel, pseq.nmds, type = "sample", color = "mnd")
+  plot(p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
+  p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "MND Prevalence")
+
+    # MDS
+   pseq.mds <- ordinate(pseq.rel, "MDS", "bray")
+   p3 = plot_ordination(pseq.rel, pseq.mds, type = "sample", color = "mnd")
+ plot(p1 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
+
+   p3 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, 3) + labs(color = "MND Prevalence")
+   #PCoA for compositional data with Bray-Curtis distances
+    #   p4 <- plot_landscape(pseq.rel, method = "NMDS", distance = "bray", colour = "mnd", size = 3) 
+    #   p4 <- p4 + scale_color_brewer(palette = "Dark2")+ scale_fill_gradient(low = "#e0ecf4", high = "#6e016b") 
+      p5 <- plot_landscape(pseq.rel, method = "MDS", distance = "bray", col = "mnd", size = 3) 
+  print(p5)
+  # 
+  #   # Pick core taxa
+    pseq.core <- core(pseq.rel, detection = 5/100, prevalence = 5/100)
+  # 
+  #   # PCoA for compositional data with Bray-Curtis distances
+   p6 <- plot_landscape(microbiome::transform(pseq.core, "compositional"),
+                        method = "PCoA", distance = "bray") +
+         labs(title = paste("PCoA / Compositional / Bray-Curtis"))
+  # 
+    tsne_res <- tsne_phyloseq(pseq.subset, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
+    p7 <- plot_tsne_phyloseq(pseq.subset, tsne_res,
+    color = 'mnd')
+    p7 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence")
+
+  print(p7)
+
+}
+
+mylab <- function(v1) {
+  deparse(substitute(v1))
+}
+
+pre_perma_d <- function(pseq.subset) { 
+  p.low <<- subset_samples(pseq.subset, mnd == "LOW")
+  print(bob)
+  p.low.d <<- divergence(p.low)
+  p.med <<- subset_samples(pseq.subset, mnd == "MEDIUM")
+  p.med.d <<- divergence(p.med)
+  p.high <<- subset_samples(pseq.subset, mnd == "HIGH")
+  p.high.d <<- divergence(p.high)
+  p <<- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
+  
+}
+
+pre_perma_d(pseq.subset) 
+perma_d(p.low,p.high)
 
 
 
+perma_d <- function(x,y) { # x & y must be either p.low,p.med or p.high
+
+  # Convert to compositional data
+  pseqLvH <- merge_phyloseq(x,y)
+  tempx <- mylab(x)
+  pseq.rel <- microbiome::transform(pseqLvH, "compositional")
+  otu <- abundances(pseq.rel)
+  meta <- meta(pseq.rel)
+  permanova <- adonis(t(otu) ~ mnd,
+               data = meta, permutations=999, method = "bray")
+ # P-value
+  print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
+  dist <- vegdist(t(otu))
+  anov <- anova(betadisper(dist, meta$mnd))
+  summary(anov)
+  tidy(anov)
+  coef <- coefficients(permanova)["mnd1",]
+  top.coef <- coef[rev(order(abs(coef)))[1:20]]
+  par(mar = c(3, 14, 2, 1))
+  temp <- TeX("Top Genus $tempx")
+  barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = temp)
+ } 
+
+## MICROBIOME COMPOSITION
+paste("Hello", "world", sep=" ")
+
+comp_d <- function(pseq,mylabel) {
+  png(paste(mylabel,"Phylum_abundance.png",sep="_"))
+  p <- plot_bar(pseq,"Phylum") + theme(axis.text.x = element_text(face="italic"))
+  print(p)
+
+  prev.otu <- plot_taxa_prevalence(pseq, "Phylum")
+  prev.otu + theme(legend.position="none")
+  ggsave(paste(mylabel,"phylum_prevalence.png",sep="_"))
+
+
+  tab <- plot_taxa_prevalence(pseq, "Phylum", detection = 5)
+  tab + theme(legend.position="none")
+  ggsave("Phylum_prevalence_detection5.png")
+  
+  pseq.ph <- aggregate_taxa(pseq, "Phylum")
+  pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
+  plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample") +
+    theme(legend.position = "bottom") + theme_bw() +
+    theme(axis.text.x=element_blank()) +
+    c + scale_fill_brewer(palette = "Paired") + guides(fill=guide_legend("Phylum"))
+  print(plot.comp.rel)
+  ggsave("phylum_relative_abundance11.png")
+  plot.comp.rel + theme(legend.position="none")
+  ggsave("phylum_relative_abundance12.png") 
+  
+  pseq.ph <- aggregate_taxa(pseq, "Phylum")
+  pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
+  plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND   Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
+  plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+  ggsave("phylum_abundance_bar.png")
+  # Top 5
+  top5P.names = sort(tapply(taxa_sums(pseq), tax_table(pseq)[, "Genus"], sum), TRUE)[1:5]
+
+  top5P = subset_taxa(pseq, Genus %in% names(top5P.names))
+  pseq.ph.rel <- microbiome::transform(top5P, "compositional")
+  plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
+
+  plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+  
+  # Top 10
+  top10P.names = sort(tapply(taxa_sums(pseq), tax_table(pseq)[, "Genus"], sum), TRUE)[1:10]
+
+  top10P = subset_taxa(pseq, Genus %in% names(top10P.names))
+  pseq.ph.rel <- microbiome::transform(top10P, "compositional")
+
+  plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
+
+  plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
+  # new
+  p.new <- aggregate_taxa(pseq, "Phylum")
+  p.new.rel <- microbiome::transform(p.new, "compositional")
+
+  plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic"))
+
+  plot.p.new.rel + scale_fill_brewer(palette = "Paired") 
+  ggsave("pnew_abundance_bar.png")
+  
+  # Top Phylum Heatmap
+  pseq.ph <- aggregate_taxa(pseq, "Phylum")
+
+  pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
+
+  plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample", plot.type = "heatmap")
+
+  plot(plot.comp.rel+ coord_flip()) + theme(axis.text.x=element_blank())
+  ggsave("phylum_histogram.png")
+  
+  #p.new heatmap
+  pseq.n.ph <- aggregate_taxa(pseq, "Phylum")
+  pseq.n.ph.rel <- microbiome::transform(pseq.n.ph, "compositional")
+
+  plot.n.comp.rel <- plot_composition(pseq.n.ph.rel, x.label = "sample", plot.type = "heatmap")
+
+  p <- plot.n.comp.rel + coord_flip()
+  p + theme(axis.text.x=element_blank()) + labs(y = "Sample")
+  ggsave("pnew_histogram.png")
+  
+  # Newwork
+  png("network_bray_phylum.png")
+  jg = make_network(pseq, "taxa", "bray", 0.3)
+  plot_network(jg, pseq, "taxa", color = "Phylum", line_weight = 0.4, label = NULL)
+  dev.off()
+  #Community-composition-plots
+  # Create a data table for ggplot
+# agglomerate at phylum level
+pseq_phy <- tax_glom(pseq.new, taxrank = "Phylum")                  
+
+# Transform to rel. abundance (or use ps0.ra)
+pseq_phyl <- transform_sample_counts(pseq_phy, function(x) {x/sum(x)}) 
+
+# Melt to long format for easy ggploting
+pseq_phylum <- psmelt(pseq_phyl) 
+ 
+     # filter(Abundance > 0.01)                             # Filter out low abundance taxa
+# Plot - Phylum
+  p.ra.phylum <- ggplot(pseq_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
+  geom_bar(stat = "identity", width = 1) +
+  facet_wrap(~mnd, scales = "free_x", nrow = 4, ncol = 7) +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.title.x = element_blank()) +
+  labs(title = "Abundant Phylum (> 1%)")
+
+  p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
+  plot(p)
+  ggsave("phylum_abun_mnd.png")
+}
+
+
+alpha_d(pseq.subset         )
+beta_d(pseq.subset)
+
+```
+
+
+```{r MND table summary}
+
+
+library(table1)
+n <- length(sample_data(pseq.subset)$mnd)
+
+data <- data.frame(id=1:n)
+data$mnd <- sample_data(pseq.subset)$mnd
+data$bmi <- sample_data(pseq.subset)$BMI
+data$age <- sample_data(pseq.subset)$age
+data$antibiotics_current_use <- sample_data(pseq.subset)$antibiotics_current_use
+data$smoker <- sample_data(pseq.subset)$smoker
+data$pregnant <- sample_data(pseq.subset)$pregnant
+data$alcohol <- sample_data(pseq.subset)$alcohol
+data$age_category <- sample_data(pseq.subset)$age_category
+
+
+table1(~ age  +  bmi + smoker + alcohol + age_category | mnd, data=data)
 
 
 ```
+
 
 ## BETA DIVERSITY
 Beta-diversity: Measures for differences between samples from different groups to identify if there are differences in the overall community composition and structure.
 WE want to: quantify community divergence within a given sample set
 Divergence of a given sample can be quantified as the average dissimilarity of each sample from the group mean; the dissimilarity can be quantified by beta diversity.
 
-```{r Phylum NMDS}
-
-png("Phylum_NMDS.png")
-pseq.ord <- ordinate(pseq, "NMDS", "bray")
-
-p1 = plot_ordination(pseq, pseq.ord, type = "taxa", color = "mnd", title = "Taxa by Phylum")
-p1 + facet_wrap(~Phylum, 3)
-dev.off()
-
-```
-
-
 Divergence of a given sample set can be quantified as the average dissimilarity of each sample from the group mean; the dissimilarity can be quantified by beta diversity, for instance. This was applied in group-level comparisons for instance in Salonen et al. ISME J 2014 (they focused on homogeneity using inverse correlation, whereas here we focus on divergence using correlation but the measure is essentially the same).
-```{r Calculate group divergences}
- 
-# Use these to compare microbiota divergence within each group
 
-p.low <- subset_samples(pseq, mnd == "LOW")
-p.low.d <- divergence(p.low)
-
-p.med <- subset_samples(pseq, mnd == "MEDIUM")
-p.med.d <- divergence(p.med)
-
-p.high <- subset_samples(pseq, mnd == "HIGH")
-p.high.d <- divergence(p.high)
-
-p <- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
-plot(p)
-
-```
  The low group tends to have smaller values, indicating that the samples are more similar to the group mean, and is less heterogeneous (has smaller spread / is more homogeneous):
-
-
-# VISUALISE MICORBIOME VARIATION
-```{r convert to compositional data}
-
-# Convert to compositional data
-pseq.rel <- microbiome::transform(pseq, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
-
-```
-
-
-
-
-NMDS/Bray
-Bray-Curtis dissimilarity does not consider phylogenetic relationships between OTUs. There are several distance methods and a list can be obtained by typying ?distanceMethodList in the console pane.
-```{r}
-
-pseq.ord <- ordinate(pseq.rel, "NMDS", "bray")
-
-p1 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "mnd")
-plot(p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
-ggsave("NMDSt.png")
-
-p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "MND Prevalence")
-ggsave("NMDS_facet.png")
-
-
-
-```
-
-
-
-MDS ordination on Bray-Curtis distance
-Performs principal coordinate analysis (also called principle coordinate decomposition, multidimensional scaling (MDS), or classical scaling) of a distance matrix (Gower 1966), including two correction methods for negative eigenvalues. See pcoa for further details.
-```{r}
-
-pseq.ord <- ordinate(pseq.rel, "MDS", "bray")
-
-p1 = plot_ordination(pseq.rel, pseq.ord, type = "sample", color = "mnd")
-plot(p1 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
-ggsave("MDS.png")
-
-p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, 3) + labs(color = "MND Prevalence")
-ggsave("MDS_facet.png")
-
-```
-
-
-PCoA for compositional data with Bray-Curtis distances
-```{r}
-
-p <- plot_landscape(pseq.rel, method = "NMDS", distance = "bray", colour = "mnd", size = 3) 
-p2 <- p + scale_color_brewer(palette = "Dark2")+ scale_fill_gradient(low = "#e0ecf4", high = "#6e016b") 
-
-
-p1 <- plot_landscape(pseq.rel, method = "MDS", distance = "bray", col = "mnd", size = 3) 
-print(p1)
-
-```
-
-
-
-```{r PCoA Bray}
-
-# Pick core taxa
-pseq.core <- core(pseq.rel, detection = 5/100, prevalence = 5/100)
-
-# PCoA for compositional data with Bray-Curtis distances
-png("PCoA_bray.png")
-p <- plot_landscape(microbiome::transform(pseq.core, "compositional"),
-                      method = "PCoA", distance = "bray") +
-       labs(title = paste("PCoA / Compositional / Bray-Curtis"))
-print(p)
-dev.off()
-
-```
-
-
-
-
-
-
-t-SNE is a popular new ordination technique
-, title='t-SNE (Bray)'
-```{r t-SNE}
-
-tsne_res <- tsne_phyloseq(pseq, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
-tsne_p <- plot_tsne_phyloseq(pseq, tsne_res,
-  color = 'mnd')
-tsne_p + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence")
-ggsave("t_sne.png")
-
-```
-
-
 
 ## PERMANOVA significance test for group-level differences
 Evaluate whether the MND grouping has a significant effect on overall gut microbiota composition
-
-```{r Redefine data}
-
-# Convert to compositional data
-pseqLvH <- merge_phyloseq(p.low,p.high)
-
-pseq.rel <- microbiome::transform(pseqLvH, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
-
-```
-
-
-```{r PERMANOVA}
-
-# samples x species as input
-library(vegan)
-permanova <- adonis(t(otu) ~ mnd,
-               data = meta, permutations=999, method = "bray")
-
-# P-value
-print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
-
-```
-
-Check that variance homogeneity assumptions hold (to ensure the reliability of the results):Check that variance homogeneity assumptions hold (to ensure the reliability of the results):
-```{r ANOVA}
-
-dist <- vegdist(t(otu))
-anov <- anova(betadisper(dist, meta$mnd))
-summary(anov)
-tidy(anov)
-
-```
-
-
-
-Show coefficients for the top taxa separating the groups
-```{r top taxa L vs H}
-
-coef <- coefficients(permanova)["mnd1",]
-top.coef <- coef[rev(order(abs(coef)))[1:20]]
-par(mar = c(3, 14, 2, 1))
-barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus")
-ggsave("LvH.png")
-
-```
-
-```{r HvL}
-pseqHvL <- merge_phyloseq(p.high,p.low)
-
-pseq.rel <- microbiome::transform(pseqHvL, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
-
-library(vegan)
-permanova <- adonis(t(otu) ~ mnd,
-               data = meta, permutations=99, method = "bray")
-
-# P-value
-print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
-
-dist <- vegdist(t(otu))
-anov <- anova(betadisper(dist, meta$mnd))
-summary(anov)
-tidy(anov)
-
-
-coef <- coefficients(permanova)["mnd1",]
-top.coef <- coef[rev(order(abs(coef)))[1:20]]
-par(mar = c(3, 14, 2, 1))
-barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus")
-
-```
-
-
-```{r L vs M}
-
-pseqLvM <- merge_phyloseq(p.low,p.med)
-
-pseq.rel <- microbiome::transform(pseqLvM, "compositional")
-otu <- abundances(pseq.rel)
-meta <- meta(pseq.rel)
-
-library(vegan)
-permanova <- adonis(t(otu) ~ mnd,
-               data = meta, permutations=999, method = "bray")
-
-# P-value
-print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])
-
-dist <- vegdist(t(otu))
-anov <- anova(betadisper(dist, meta$mnd))
-summary(anov)
-tidy(anov)
-
-
-coef <- coefficients(permanova)["mnd1",]
-top.coef <- coef[rev(order(abs(coef)))[1:20]]
-par(mar = c(3, 14, 2, 1))
-barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = "Top Genus")
-ggsave("LvM.png")
-
-```
-
-
 
 ## MICROBIOME COMPOSITION
 
@@ -488,50 +424,10 @@ table(tax_table(pseq)[, "Phylum"], exclude = NULL)
 ```
 This shows a few phyla for which only one feature was observed. Those may be worth filtering.
 
-```{r Total Phylum abundnace bar}
-
-png("Phylum_abundance.png")
-p <- plot_bar(pseq,"Phylum") + theme(axis.text.x = element_text(face="italic"))
-print(p)
-dev.off()
-
-```
-
-```{r Phylum prevalence table}
-
-prev.otu <- plot_taxa_prevalence(pseq, "Phylum")
-prev.otu + theme(legend.position="none")
-ggsave("phylum_prevalence.png")
-
-
-tab <- plot_taxa_prevalence(pseq, "Phylum", detection = 5)
-tab + theme(legend.position="none")
-ggsave("Phylum_prevalence_detection5.png")
-
-```
 
 
 
-```{r Relative abundance}
 
-pseq.ph <- aggregate_taxa(pseq.new, "Phylum")
-
-pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
-
-plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample") +
-theme(legend.position = "bottom") + theme_bw() +
-theme(axis.text.x=element_blank()) +
-c + scale_fill_brewer(palette = "Paired") + guides(fill=guide_legend("Phylum"))
-
-print(plot.comp.rel)
-
-ggsave("phylum_relative_abundance11.png")
-
-plot.comp.rel + theme(legend.position="none")
-ggsave("phylum_relative_abundance12.png")                                                                        
-
-
-```
 
 guide_italics
 ggtitle("Relative abundance") +  
@@ -560,70 +456,6 @@ ggsave("phylum_relative_abundance_clos2.png")
 
 
 
-
-```{r Phylum Bar Plot}
-
-levels(pseq.meta$mnd)
-
-pseq.ph <- aggregate_taxa(pseq, "Phylum")
-
-pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
-
-plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
-
-plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-ggsave("phylum_abundance_bar.png")
-
-
-
-```
-
-
-```{r}
-
-top5P.names = sort(tapply(taxa_sums(pseq), tax_table(pseq)[, "Genus"], sum), TRUE)[1:5]
-
-top5P = subset_taxa(pseq, Genus %in% names(top5P.names))
-
-pseq.ph.rel <- microbiome::transform(top5P, "compositional")
-
-plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
-
-plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-
-```
-
-```{r}
-
-top10P.names = sort(tapply(taxa_sums(pseq), tax_table(pseq)[, "Genus"], sum), TRUE)[1:10]
-
-top10P = subset_taxa(pseq, Genus %in% names(top10P.names))
-
-pseq.ph.rel <- microbiome::transform(top10P, "compositional")
-
-plot.comp.rel <- plot_composition(pseq.ph.rel, average_by = "mnd", x.label = "MND Incidence", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum"))
-
-plot.comp.rel + scale_fill_viridis(discrete = TRUE, option = "plasma") 
-
-```
-
-
-
-```{r pseq.new bar plot}
-
-p.new <- aggregate_taxa(pseq.new, "Phylum")
-
-p.new.rel <- microbiome::transform(p.new, "compositional")
-
-plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic"))
-
-plot.p.new.rel + scale_fill_brewer(palette = "Paired") 
-ggsave("pnew_abundance_bar.png")
-
-```
-
-
-
 ```{r CLostridium Bar Plot}
 
 clos <- aggregate_taxa(clostridium, "Phylum")
@@ -648,34 +480,6 @@ plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A")
 ```
 
 
-```{r Top Phylum Heatmap}
-
-pseq.ph <- aggregate_taxa(pseq, "Phylum")
-
-pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
-
-plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample", plot.type = "heatmap")
-
-plot(plot.comp.rel+ coord_flip()) + theme(axis.text.x=element_blank())
-ggsave("phylum_histogram.png")
-
-
-```
-
-```{r p.new heatmap}
-
-pseq.n.ph <- aggregate_taxa(pseq.new, "Phylum")
-
-pseq.n.ph.rel <- microbiome::transform(pseq.n.ph, "compositional")
-
-plot.n.comp.rel <- plot_composition(pseq.n.ph.rel, x.label = "sample", plot.type = "heatmap")
-
-p <- plot.n.comp.rel + coord_flip()
-p + theme(axis.text.x=element_blank()) + labs(y = "Sample")
-ggsave("pnew_histogram.png")
-
-```
-
 
 ```{r clostridium heatmap}
 
@@ -694,47 +498,10 @@ ggsave("clos_histogram.png")
 
 
 
-```{r Network}
-
-png("network_bray_phylum.png")
-jg = make_network(pseq, "taxa", "bray", 0.3)
-plot_network(jg, pseq, "taxa", color = "Phylum", line_weight = 0.4, label = NULL)
-dev.off()
-
-```
-
 
 
 ## Community composition plotting
 Classic bar plots of bacterial phyla present per sample can be useful for communicating "high level" results. These are relatively easy to interpret when major shifts in microbial communities are present, such as in this study where antibiotics are used However, they are not effective at detecting subtle shifts in communities or taxa and do not convey any statistical significance and can be subjectively interpreted. Interpretation of these plots should always be subject to subsequent statistical analysis.
-```{r community-composition-plots}
-# Create a data table for ggplot
-# agglomerate at phylum level
-pseq_phy <- tax_glom(pseq.new, taxrank = "Phylum")                  
-
-# Transform to rel. abundance (or use ps0.ra)
-pseq_phyl <- transform_sample_counts(pseq_phy, function(x) {x/sum(x)}) 
-
-# Melt to long format for easy ggploting
-pseq_phylum <- psmelt(pseq_phyl) 
- 
-    
-     # filter(Abundance > 0.01)                             # Filter out low abundance taxa
-
-
-# Plot - Phylum
-p.ra.phylum <- ggplot(pseq_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
-  geom_bar(stat = "identity", width = 1) +
-  facet_wrap(~mnd, scales = "free_x", nrow = 4, ncol = 7) +
-  theme(axis.text.x = element_blank()) +
-  theme(axis.title.x = element_blank()) +
-  labs(title = "Abundant Phylum (> 1%)")
-
-p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
-plot(p)
-ggsave("phylum_abun_mnd.png")
-
-```
 
 ```{r}
 
