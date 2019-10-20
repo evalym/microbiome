@@ -422,6 +422,17 @@ Divergence of a given sample set can be quantified as the average dissimilarity 
 ## PERMANOVA significance test for group-level differences
 Evaluate whether the MND grouping has a significant effect on overall gut microbiota composition
 
+
+
+
+
+NOTHING BELOW THIS WORKS!!!!!!!!
+
+
+
+
+
+
 ## MICROBIOME COMPOSITION
 
 ```{r Phylum #}
