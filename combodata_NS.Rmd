@@ -8,6 +8,7 @@ output: html_document
 ## Setup
 ```{r setup, include=FALSE}
 
+setwd("~/globalmicrobiome") 
 
 #BiocManager::install("curatedMetagenomicData")
 #BiocManager::install("ExperimentHub")
@@ -96,6 +97,12 @@ table(c.mnd.country)
 
 c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("NOR","SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA", UKIE = "GBR" )
 
+#drops unused levels
+c.mnd.atlas <- droplevels(c.mnd.atlas,c("ISL","HUN","EST", "SVK", "LUX", "CAN", "AUT", "BGD","FJI") ) 
+
+sample_data(pseq)$nationality = c.mnd.atlas
+
+
 #mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DNK","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
 
 #mnd.country <- fct_collapse(mnd.country, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
@@ -145,7 +152,7 @@ table(get_variable(atlas.pseq, "mnd"))
 
 # this defines the colours for the graphs. Uses the wes palettes. Look at https://github.com/karthik/wesanderson for the different themes
 glob_theme <- "FantasticFox1"
-
+setwd("~/globalmicrobiome") 
 my_cur_table <- function(pseq.subset){
     n <- length(sample_data(pseq.subset)$mnd)
     data <- data.frame(id=1:n)
@@ -193,10 +200,10 @@ alpha_d <- function(pseq.subset,title_text) {
   # Compare differences in Shannon index between mnd group of the study subjects
   pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
   # on to the graphs!!!
-  print("The basic aloha diversity analysis has been completed")
+  print("The basic alpha diversity analysis has been completed")
   # This country versus nationality
-  p1<-   ggviolin(pseq.meta, x = "country", y = "Shannon",
-                  add = "boxplot", fill = "country", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+  p1<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
+                  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
   print("First graph has completed")
   # the number in the palettes must equal the number of groups in bmi.pairs
   
@@ -222,7 +229,7 @@ alpha_d <- function(pseq.subset,title_text) {
   p3 <<-plot_grid(title,p1,p2, align = "v" , ncol = 1, labels = c('','A', 'B'),rel_heights = c(0.1, 1,1.2))
   
   print("Third graph has completed")
-  ggsave(paste("/Users/Nik/Alpha_diversity_",title_text,".png", sep = "" ), device = "png")
+  save_plot(paste(title_text,".png", sep = ""),p3,base_height = 11.69 )
   #ggsave("/Users/Nik/Alpha_diversity_curate.png")
 }
 
@@ -241,14 +248,14 @@ beta_d <- function(pseq.subset,title_text) {
 
   # This add the facets but I do not think we need that any more. 
   #p3 <- p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "MND Prevalence")
-  ggsave(paste("Beta_diversity_",title_text,"_NMDS.png", sep = "" ), device = "png")
+  save_plot(paste("Beta_diversity_",title_text,"_NMDS.png", sep = "" ), p3)
     # MDS
    pseq.mds <<- ordinate(pseq.subset, "MDS", "bray")
    p4 <- plot_ordination(pseq.subset, pseq.mds, type = "sample", color = "mnd")
  #plot(p1 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence MDS"))
 
     p5 <- p4 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "MDS",color = "MND Prevalence") + theme(legend.position = "none")
-    ggsave(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), device = "png")
+    save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p5)
 
    #PCoA for compositional data with Bray-Curtis distances
     #   p4 <- plot_landscape(pseq.rel, method = "NMDS", distance = "bray", colour = "mnd", size = 3) 
@@ -262,7 +269,7 @@ beta_d <- function(pseq.subset,title_text) {
     tsne_res <- tsne_phyloseq(pseq.subset, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
     p7 <- plot_tsne_phyloseq(pseq.subset, tsne_res,color = 'mnd')
     p8 <- p7 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "TSNE",color = "MND Prevalence") + theme(legend.position = "bottom")
-    ggsave(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), device = "png")
+    save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p8)
        #this just generates the titles for the output
     title <- ggdraw() + 
     draw_label(
@@ -278,7 +285,7 @@ beta_d <- function(pseq.subset,title_text) {
     )
 
     p10 <<-plot_grid(title,p3, p5,p8, ncol = 1, labels = c('','A', 'B','C'),rel_heights = c(0.3, 1.5,1.5,2))
-    ggsave(paste("Beta_diversity_ALL_",title_text,".png", sep = "" ), device = "png",width = 210, height = 297, units = "mm")
+    save_plot(paste("Beta_diversity_ALL_",title_text,".png", sep = "" ), p10)
 }
 
 
@@ -324,7 +331,7 @@ perma_d <- function(x,y,title_text) { # x & y must be either p.low,p.med or p.hi
   temp$label <- sub("s_*", "", temp[,2])
   #temp$colour <- ifelse(temp$top.coef < 0, "firebrick1","steelblue")
   p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 20)  + annotate("text", x = 2.5, y = 0.02, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa")  
-  ggsave(paste("PERMANOVA_",title_text,".png", sep = "" ), device = "png",width = 210, height = 297, units = "mm")
+  save_plot(paste("PERMANOVA_",title_text,".png", sep = "" ), p)
   #ggsave("test_permanova.png", device = "png",width = 297, height = 210, units = "mm")
  } 
 
@@ -622,7 +629,7 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
 
-
+setwd("~/globalmicrobiome") 
 
 # These are useful is filtering. 
 #sample_variables(pseq.subset)
@@ -642,18 +649,18 @@ perma_d(p.low,p.high,"RLWT_Curatefinal_highVlow")
 
 pre_perma_d(pseq.subset) 
 perma_d(p.med,p.high,"RLWT_Curatefinal_highVmed")
-p
+
 
 pre_perma_d(atlas.pseq) 
 perma_d(p.low,p.high,"RLWT_Atlasfinal_highVlow")
 
 pre_perma_d(atlas.pseq) 
 perma_d(p.med,p.high,"RLWT_Atlasfinal_highVmed")
-p
 
 
 
 
+#   not working from here !!!!!!
 
 plot_abundance.ak = function(pseq.subset,title = "",
                          Facet = "Genus", Color = "Phylum"){
