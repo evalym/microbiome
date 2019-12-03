@@ -80,7 +80,7 @@ get_variable(pseq, "bmi_group")
 #pseq <- orig_pseq
 # grabs the nationality from phyloseq
 c.mnd.country <- get_variable(pseq, "country" )
-table(mnd.country)
+table(c.mnd.country)
 
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
 # Not used BGD Bangladesh , CAN Canada, CHN, China. DNK denmark, FJI Figi, HUN Hungry, ISL isle of man , MDG, MNG mongolia, PER Iran, RUS RUSSIA, 
@@ -94,15 +94,15 @@ table(mnd.country)
 #Eastern Europe = Poland 
 
 
-c.mnd.atlas <- fct_collapse(c.mnd.country, CentralEurope = c("NOR","SWE","FIN","DEN","LUX") , SouthEurope = c("ITA","AUT","DEU","ESP","FRA","NLD"), Scandinavia = c("GBR","USA"), US = "USA", UKIE = "GBR", )
+c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("NOR","SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA", UKIE = "GBR" )
 
-#mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DEN","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
+#mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DNK","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
 
 #mnd.country <- fct_collapse(mnd.country, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
 
 # reorder
-
-c.mnd.nationality <- fct_collapse(c.mnd.atlas, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE") )
+# NOTE THERE IS NO EASTERN EUROPE
+c.mnd.nationality <- fct_collapse(c.mnd.atlas, LOW = c("Scandinavia") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE") )
 
 c.mnd.nationality <- factor(c.mnd.nationality, levels = (c("LOW", "MEDIUM", "HIGH")))
 levels(c.mnd.nationality)
@@ -112,7 +112,7 @@ sample_data(pseq)$mnd = c.mnd.nationality
 
 # checks that it has worked.
 get_variable(pseq, "mnd")
-
+table(get_variable(pseq, "mnd"))
 
 ###############################################
 
@@ -134,7 +134,7 @@ levels(a.mnd.nationality)
 sample_data(atlas.pseq)$mnd = a.mnd.nationality
 #sample_data(atlas.pseq)$country = sample_data(atlas.pseq)$nationality
 # checks that it has worked.
-table(get_variable(atlas.pseq, "nationality"))
+table(get_variable(atlas.pseq, "mnd"))
 
 
 ```
@@ -193,15 +193,18 @@ alpha_d <- function(pseq.subset,title_text) {
   # Compare differences in Shannon index between mnd group of the study subjects
   pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
   # on to the graphs!!!
-  print("The basic aplha diversity analysis has been completed")
+  print("The basic aloha diversity analysis has been completed")
   # This country versus nationality
-  p1<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
+  p1<-   ggviolin(pseq.meta, x = "country", y = "Shannon",
                   add = "boxplot", fill = "country", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+  print("First graph has completed")
   # the number in the palettes must equal the number of groups in bmi.pairs
   
   p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = wes_palette(glob_theme)) 
   
   p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND Prevalence") + theme(legend.position="none")
+  
+  print("Second graph has completed")
   #this just generates the titles for the output
   title <- ggdraw() + 
     draw_label(
@@ -217,6 +220,8 @@ alpha_d <- function(pseq.subset,title_text) {
     )
   
   p3 <<-plot_grid(title,p1,p2, align = "v" , ncol = 1, labels = c('','A', 'B'),rel_heights = c(0.1, 1,1.2))
+  
+  print("Third graph has completed")
   ggsave(paste("/Users/Nik/Alpha_diversity_",title_text,".png", sep = "" ), device = "png")
   #ggsave("/Users/Nik/Alpha_diversity_curate.png")
 }
@@ -635,8 +640,67 @@ beta_d(pseq.subset,"final_2")
 pre_perma_d(pseq.subset) 
 perma_d(p.low,p.high,"RLWT_Curatefinal_highVlow")
 
+pre_perma_d(pseq.subset) 
+perma_d(p.med,p.high,"RLWT_Curatefinal_highVmed")
+p
+
+pre_perma_d(atlas.pseq) 
+perma_d(p.low,p.high,"RLWT_Atlasfinal_highVlow")
+
+pre_perma_d(atlas.pseq) 
+perma_d(p.med,p.high,"RLWT_Atlasfinal_highVmed")
+p
 
 
+
+
+
+plot_abundance.ak = function(pseq.subset,title = "",
+                         Facet = "Genus", Color = "Phylum"){
+ # Arbitrary subset, based on Phylum, for plotting
+ p1f = subset_taxa(pseq.subset, Genus %in% c("Akkermansia"))
+ mphyseq = psmelt(p1f)
+ mphyseq <- subset(mphyseq, Abundance > 0)
+ p <- ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance")) +
+   geom_violin(fill = NA) +
+   geom_point(size = 1, alpha = 0.3,
+              position = position_jitter(width = 0.3)) + scale_y_log10()+
+   theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) 
+ library(rms)
+fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group + age_category, data =mphyseq)
+fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
+fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group, data =mphyseq)
+
+}
+ 
+
+newData<-data.frame(JVeg5=factor(Jdata[,"JVeg5"]),scale(Jdata[,c("Elevation","Lat_Y_pos","Coast_dist","Stream_dist")]))
+
+Global <- polr(JVeg5 ~  Elevation +  Lat_Y_pos + Coast_dist + Stream_dist,
+                data=newData, na.action = na.omit, Hess = TRUE)
+
+library(MASS)
+model_fit <- polr(mnd~Abundance, data = mphyseq)
+summary(model_fit)
+
+
+data(atlas1006)
+plot_regression(diversity ~ mnd, meta(atlas.pseq))
+
+otu <- atlas.pseq$microbes 
+lipids <- peerj32$lipids 
+
+# Define data sets to cross-correlate
+x <- log10(otu) # OTU Log10 (44 samples x 130 genera)
+y <- as.matrix(lipids) # Lipids (44 samples x 389 lipids)
+
+# Cross correlate data sets
+correlations <- associate(x, y, method = "spearman", mode = "matrix", p.adj.threshold = 0.05, n.signif = 1)
+
+# Or, alternatively, the same output is also available in a handy table format
+correlation.table <- associate(x, y, method = "spearman", mode = "table", p.adj.threshold = 0.05, n.signif = 1)
+
+kable(head(correlation.table))
 ```
 
 
