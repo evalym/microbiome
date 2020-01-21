@@ -15,7 +15,6 @@ knitr::opts_knit$set(root.dir = '~/globalmicrobiome')
 ```
 
 
-
 ## Setup
 ```{r setup, include=FALSE}
 
@@ -69,77 +68,79 @@ atlas.pseq <- baseline(atlas1006) # only uses the baseline samples. This is n=10
 ## Incidence of MND
 ```{r}
 
+#THIS IS NO LONGER NEEDED. 
+
 # This block uses the raw data to examin  the incidence of MND to ensure the classificaiton is correct. It assumes that the data is in the correct place so the setwd at the top meeds to be accurate. 
-setwd('~/globalmicrobiome') 
-# For MND  nrows = 196 as thwew are other things after 196
-mnd.i.15_49 <- as.data.frame(read.csv("./rawdata/MND_I_15_49.csv", header=TRUE, nrows = 196))
+# setwd('~/globalmicrobiome') 
+# # For MND  nrows = 196 as thwew are other things after 196
+# mnd.i.15_49 <- as.data.frame(read.csv("./rawdata/MND_I_15_49.csv", header=TRUE, nrows = 196))
 
-mnd.i.50_69  <- as.data.frame(read.csv("./rawdata/MND_I_50_69.csv", header=TRUE, nrows = 196))
-mnd.i.70 <- as.data.frame(read.csv("./rawdata/MND_I_70plus.csv", header=TRUE, nrows = 196))
+# mnd.i.50_69  <- as.data.frame(read.csv("./rawdata/MND_I_50_69.csv", header=TRUE, nrows = 196))
+# mnd.i.70 <- as.data.frame(read.csv("./rawdata/MND_I_70plus.csv", header=TRUE, nrows = 196))
 
-mnd.i.70.test <- mnd.i.70
-# Run function and change name
-mnd.i.15_49 <- mb.gather(mnd.i.15_49)
-colnames(mnd.i.15_49)[2] <- "15-49"
+# mnd.i.70.test <- mnd.i.70
+# # Run function and change name
+# mnd.i.15_49 <- mb.gather(mnd.i.15_49)
+# colnames(mnd.i.15_49)[2] <- "15-49"
 
-# Run function and change name
-mnd.i.50_69 <- mb.gather(mnd.i.50_69)
-colnames(mnd.i.50_69)[2] <- "50-69"
+# # Run function and change name
+# mnd.i.50_69 <- mb.gather(mnd.i.50_69)
+# colnames(mnd.i.50_69)[2] <- "50-69"
 
-# Run function and change name
-mnd.i.70 <- mb.gather(mnd.i.70)
-colnames(mnd.i.70)[2] <- "70"
+# # Run function and change name
+# mnd.i.70 <- mb.gather(mnd.i.70)
+# colnames(mnd.i.70)[2] <- "70"
   
   
-# Join them together.   
-mnd.i <- list( mnd.i.15_49,mnd.i.50_69,mnd.i.70 ) %>% reduce(left_join, by = "Location")
+# # Join them together.   
+# mnd.i <- list( mnd.i.15_49,mnd.i.50_69,mnd.i.70 ) %>% reduce(left_join, by = "Location")
 
 
-a.mnd.nationality <- fct_collapse(a.mnd.nationality, LOW = c("EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE","Scandinavia" ))
+# a.mnd.nationality <- fct_collapse(a.mnd.nationality, LOW = c("EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE","Scandinavia" ))
 
-mnd.i %>%
-  kable(col.names = c("","Incidence","CI","Incidence","CI","Incidence","CI")) %>%
-  kable_styling(bootstrap_options = c("striped", "hover"),full_width = F,position = "center") %>%
-add_header_above(c("Location" = 1, "15-49" = 2, "50-69" = 2, "70+" = 2)) %>%
-  add_header_above(c(" ", "Age (years)" = 6)) %>%
-  pack_rows("High MND group", 5,6)%>%
-  pack_rows("Low MND group", 2, 2) %>%
-  pack_rows("Medium MND group",1,3,4) 
+# mnd.i %>%
+#   kable(col.names = c("","Incidence","CI","Incidence","CI","Incidence","CI")) %>%
+#   kable_styling(bootstrap_options = c("striped", "hover"),full_width = F,position = "center") %>%
+# add_header_above(c("Location" = 1, "15-49" = 2, "50-69" = 2, "70+" = 2)) %>%
+#   add_header_above(c(" ", "Age (years)" = 6)) %>%
+#   pack_rows("High MND group", 5,6)%>%
+#   pack_rows("Low MND group", 2, 2) %>%
+#   pack_rows("Medium MND group",1,3,4) 
   
 
 
-# Now do the same for the curated data set
-mnd.ic.15_49 <- mb.cgather(mnd.i.15_49)
-colnames(mnd.ic.15_49)[2] <- "15-49"
+# # Now do the same for the curated data set
+# mnd.ic.15_49 <- mb.cgather(mnd.i.15_49)
+# colnames(mnd.ic.15_49)[2] <- "15-49"
 
 
-# Run function and change name
-mnd.ic.50_69 <- mb.cgather(mnd.i.50_69)
-colnames(mnd.ic.50_69)[2] <- "50-69"
+# # Run function and change name
+# mnd.ic.50_69 <- mb.cgather(mnd.i.50_69)
+# colnames(mnd.ic.50_69)[2] <- "50-69"
 
-# Run function and change name
-mnd.ic.70 <- mb.cgather(mnd.i.70)
-colnames(mnd.ic.70)[2] <- "70"
+# # Run function and change name
+# mnd.ic.70 <- mb.cgather(mnd.i.70)
+# colnames(mnd.ic.70)[2] <- "70"
 
-# Join them together. 
+# # Join them together. 
 
-mnd.ic <- list( mnd.ic.15_49,mnd.ic.50_69,mnd.ic.70 ) %>% reduce(left_join, by = "Location") 
+# mnd.ic <- list( mnd.ic.15_49,mnd.ic.50_69,mnd.ic.70 ) %>% reduce(left_join, by = "Location") 
 
-mnd.ic <- dplyr::select(mnd.ic, "Location",  "Value.x", "Lower.bound.x", "Upper.bound.x", "Value.y", "Lower.bound.y", "Upper.bound.y", "Value", "Lower.bound", "Upper.bound" )
+# mnd.ic <- dplyr::select(mnd.ic, "Location",  "Value.x", "Lower.bound.x", "Upper.bound.x", "Value.y", "Lower.bound.y", "Upper.bound.y", "Value", "Lower.bound", "Upper.bound" )
 
-# Prep the data for the table
-
-
+# # Prep the data for the table
 
 
-mnd.ic %>%
-  kable(col.names = c("","Incidence","Upper","Lower","Incidence","Upper","Lower","Incidence","Upper","Lower"),digits=3) %>%
-  kable_styling(bootstrap_options = c("striped", "hover"),full_width = F,position = "left") %>%
-add_header_above(c("Location" = 1, "15-49" = 3, "50-69" = 3, "70+" = 3)) %>%
-  add_header_above(c(" ", "Age (years)" = 9)) %>%
-  pack_rows("Group 1", 4, 7) %>%
-  pack_rows("Group 1", 4, 7) %>%
-  pack_rows("Group 2", 8, 10)
+
+
+# mnd.ic %>%
+#   kable(col.names = c("","Incidence","Upper","Lower","Incidence","Upper","Lower","Incidence","Upper","Lower"),digits=3) %>%
+#   kable_styling(bootstrap_options = c("striped", "hover"),full_width = F,position = "left") %>%
+# add_header_above(c("Location" = 1, "15-49" = 3, "50-69" = 3, "70+" = 3)) %>%
+#   add_header_above(c(" ", "Age (years)" = 9)) %>%
+#   pack_rows("Group 1", 4, 7) %>%
+#   pack_rows("Group 1", 4, 7) %>%
+#   pack_rows("Group 2", 8, 10)
 
 
 ```
@@ -222,7 +223,7 @@ a.mnd.nationality <- get_variable(atlas.pseq, "nationality" )
 
 
 # this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
-a.mnd.nationality <- fct_collapse(a.mnd.nationality, LOW = c("EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE","Scandinavia") )
+a.mnd.nationality <- fct_collapse(a.mnd.nationality, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US","UKIE") )
 
 # reorder
 a.mnd.nationality <- factor(a.mnd.nationality, levels = (c("LOW", "MEDIUM", "HIGH")))
