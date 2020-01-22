@@ -190,7 +190,9 @@ table(c.mnd.country)
 c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("NOR","SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA", UKIE = "GBR" )
 
 #drops unused levels
-c.mnd.atlas <- droplevels(c.mnd.atlas,c("ISL","HUN","EST", "SVK", "LUX", "CAN", "AUT", "BGD","FJI","CHN","MDG","MNG","PER","RUS","TZA") ) 
+c.mnd.atlas <- droplevels(c.mnd.atlas,c("ISL","HUN","EST", "SVK", "LUX", "CAN", "AUT", "BGD","FJI","CHN","MDG","MNG","PER","RUS","TZA", "KAZ")) 
+
+c.mnd.atlas <- subset_samples(c.mnd.atlas, !is.na(nationality) )
 
 sample_data(pseq)$nationality = c.mnd.atlas
 
@@ -346,7 +348,7 @@ alpha_d <- function(pseq.subset,title_text) {
   
   p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = wes_palette(glob_theme)) 
   
-  p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND Prevalence") + theme(legend.position="none")
+  p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
   
   print("Second graph has completed")
   #this just generates the titles for the output
@@ -380,7 +382,7 @@ beta_d <- function(pseq.subset,title_text) {
   pseq.nmds <- ordinate(pseq.subset, "NMDS", "bray")
   p2 <- plot_ordination(pseq.subset, pseq.nmds, type = "sample", color = "mnd")
 
-  p3 <- p2 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "NMDS",color = "MND Prevalence") + theme(legend.position = "none")
+  p3 <- p2 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "NMDS",color = "MND DALYs") + theme(legend.position = "none")
   #plot(p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
 
   # This add the facets but I do not think we need that any more. 
@@ -391,7 +393,7 @@ beta_d <- function(pseq.subset,title_text) {
    p4 <- plot_ordination(pseq.subset, pseq.mds, type = "sample", color = "mnd")
  #plot(p1 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence MDS"))
 
-    p5 <- p4 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "MDS",color = "MND Prevalence") + theme(legend.position = "none")
+    p5 <- p4 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "MDS",color = "MND DALYs") + theme(legend.position = "none")
     save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p5)
 
    #PCoA for compositional data with Bray-Curtis distances
@@ -405,7 +407,7 @@ beta_d <- function(pseq.subset,title_text) {
   # 
     tsne_res <- tsne_phyloseq(pseq.subset, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
     p7 <- plot_tsne_phyloseq(pseq.subset, tsne_res,color = 'mnd')
-    p8 <- p7 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "TSNE",color = "MND Prevalence") + theme(legend.position = "bottom")
+    p8 <- p7 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "TSNE",color = "MND DALYs") + theme(legend.position = "bottom")
     save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p8)
        #this just generates the titles for the output
     title <- ggdraw() + 
@@ -467,7 +469,7 @@ perma_d <- function(x,y,title_text) { # x & y must be either p.low,p.med or p.hi
   temp$label <- rownames(temp) 
   temp$label <- sub("s_*", "", temp[,2])
   #temp$colour <- ifelse(temp$top.coef < 0, "firebrick1","steelblue")
-  p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme(axis.text.y = element_text(face="italic"))
+  p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme(axis.text.y = element_text(face="italic")) + theme_void()
   save_plot(paste("PERMANOVA_",title_text,".png", sep = "" ), p)
   #ggsave("test_permanova.png", device = "png",width = 297, height = 210, units = "mm")
  } 
@@ -763,7 +765,7 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 
 #pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" & antibiotics_current_use != "yes")
 
-pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
+pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
 
 setwd("~/globalmicrobiome") 
@@ -780,6 +782,7 @@ alpha_d(pseq,"final_RLWT_1")
 alpha_d(atlas.pseq,"final_RLWT_2")
 
 beta_d(pseq.subset,"final_2")
+beta_d(atlas.pseq,"final_3")
 
 pre_perma_d(pseq.subset) 
 perma_d(p.low,p.high,"RLWT_Curatefinal_highVlow")
@@ -810,14 +813,15 @@ plot_abundance.ak = function(pseq.subset,title = "",
    geom_point(size = 1, alpha = 0.3,
               position = position_jitter(width = 0.3)) + scale_y_log10()+
    theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) 
- library(rms)
-fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group + age_category, data =mphyseq)
-fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
-fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group, data =mphyseq)
+ #library(rms)
+#fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group + age_category, data =mphyseq)
+#fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
+#fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group, data =mphyseq)
 
-save_plot(paste("akkermansia",title_text,".png", sep = "" ), p)
+save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
 }
  
+
 
 plotAtlas = plot_abundance.ak(atlas.pseq, "atlas")
 plotCur = plot_abundance.ak(pseq.subset, "curated")
