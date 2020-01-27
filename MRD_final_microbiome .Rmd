@@ -1046,6 +1046,7 @@ head(abundances(pseq)["Faecalibacterium prausnitzii et rel.",])
 ```
 
 
+
 # F/B ratio
 ```{r}
 

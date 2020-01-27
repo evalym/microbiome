@@ -469,7 +469,7 @@ perma_d <- function(x,y,title_text) { # x & y must be either p.low,p.med or p.hi
   temp$label <- rownames(temp) 
   temp$label <- sub("s_*", "", temp[,2])
   #temp$colour <- ifelse(temp$top.coef < 0, "firebrick1","steelblue")
-  p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme(axis.text.y = element_text(face="italic")) + theme_void()
+  p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme_classic() + theme(axis.text.y = element_text(face="italic")) 
   save_plot(paste("PERMANOVA_",title_text,".png", sep = "" ), p)
   #ggsave("test_permanova.png", device = "png",width = 297, height = 210, units = "mm")
  } 
@@ -765,7 +765,10 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 
 #pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" & antibiotics_current_use != "yes")
 
-pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) & disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
+pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) | disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
+
+pseq.subset <- subset_samples(pseq.subset, !is.na(nationality) )
+atlas.pseq <- subset_samples(atlas.pseq, !is.na(nationality) )
 
 
 setwd("~/globalmicrobiome") 
@@ -777,7 +780,7 @@ my_cur_table(pseq.subset)
 my_cur_table(pseq.c)
 
 my_atlas_table(atlas.pseq)
-alpha_d(pseq,"final_RLWT_1")
+alpha_d(pseq.subset,"final_RLWT_1")
 
 alpha_d(atlas.pseq,"final_RLWT_2")
 
