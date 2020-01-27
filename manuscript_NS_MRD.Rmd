@@ -825,9 +825,8 @@ save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
 }
  
 
-
-plotAtlas = plot_abundance.ak(atlas.pseq, "atlas")
-plotCur = plot_abundance.ak(pseq.subset, "curated")
+plotAtlas <- plot_abundance.ak(atlas.pseq, "atlas_1")
+plotCur <- plot_abundance.ak(pseq.subset, "curated")
 grid.arrange(nrow = 2, plotAtlas, plotCur)
 
 
