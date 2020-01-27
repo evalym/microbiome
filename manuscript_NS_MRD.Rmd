@@ -768,7 +768,7 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) | disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
 pseq.subset <- subset_samples(pseq.subset, !is.na(nationality) )
-atlas.pseq <- subset_samples(atlas.pseq, !is.na(nationality) )
+atlas.pseq <- subset_samples(atlas.pseq, !is.na(nationality), !is.na(mnd))
 
 
 setwd("~/globalmicrobiome") 
@@ -815,19 +815,22 @@ plot_abundance.ak = function(pseq.subset,title = "",
    geom_violin(fill = NA) +
    geom_point(size = 1, alpha = 0.3,
               position = position_jitter(width = 0.3)) + scale_y_log10()+
-   theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) 
+   theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) + theme_classic() + xlab('MND DALYs')
  #library(rms)
 #fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group + age_category, data =mphyseq)
 #fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
 #fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group, data =mphyseq)
 
-save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
+#save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
 }
  
 
-plotAtlas <- plot_abundance.ak(atlas.pseq, "atlas_1")
-plotCur <- plot_abundance.ak(pseq.subset, "curated")
-grid.arrange(nrow = 2, plotAtlas, plotCur)
+plot_abundance.ak(atlas.pseq, "atlas")
+plot_abundance.ak(pseq.subset, "curated")
+
+#plotAtlas <- plot_abundance.ak(atlas.pseq, "atlas")
+#plotCur <- plot_abundance.ak(pseq.subset, "curated")
+#plot(grid.arrange(nrow = 2, plotAtlas, plotCur))
 
 
 newData<-data.frame(JVeg5=factor(Jdata[,"JVeg5"]),scale(Jdata[,c("Elevation","Lat_Y_pos","Coast_dist","Stream_dist")]))
