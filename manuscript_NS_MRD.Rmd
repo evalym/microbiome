@@ -767,7 +767,7 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 
 pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) | disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
-pseq.subset <- subset_samples(pseq.subset, !is.na(nationality) )
+pseq.subset <- subset_samples(pseq.subset, !is.na(nationality) , !is.na(mnd) )
 atlas.pseq <- subset_samples(atlas.pseq, !is.na(nationality), !is.na(mnd))
 
 
@@ -805,7 +805,7 @@ perma_d(p.med,p.high,"RLWT_Atlasfinal_highVmed")
 
 #   not working from here !!!!!!
 
-plot_abundance.ak = function(pseq.subset,title = "",
+plot_abundance.ak = function(pseq.subset, title_text,
                          Facet = "Genus", Color = "Phylum"){
  # Arbitrary subset, based on Phylum, for plotting
  p1f = subset_taxa(pseq.subset, Genus %in% c("Akkermansia"))
@@ -821,7 +821,7 @@ plot_abundance.ak = function(pseq.subset,title = "",
 #fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
 #fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group, data =mphyseq)
 
-#save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
+save_plot(paste("akkermansia_",title_text,".png", sep = "" ), p)
 }
  
 
