@@ -767,8 +767,16 @@ pseq.c <- core(pseq, detection = 0.1/100, prevalence = 50/100)
 
 pseq.subset <- subset_samples(pseq.c, !is.na(mnd) & is.na(disease) | disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
 
-pseq.subset <- subset_samples(pseq.subset, !is.na(nationality) , !is.na(mnd) )
+pseq.subset <- subset_samples(pseq.subset, !is.na(nationality))
+pseq.subset <- subset_samples(pseq.subset, !is.na(mnd))
+
+#na.exclude(pseq.subset@sam_data[["mnd"]])
+
+# Check mnd variable
+# pseq.subset@sam_data[["mnd"]]
+
 atlas.pseq <- subset_samples(atlas.pseq, !is.na(nationality), !is.na(mnd))
+
 
 
 setwd("~/globalmicrobiome") 
