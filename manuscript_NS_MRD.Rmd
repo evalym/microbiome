@@ -811,11 +811,23 @@ plot_abundance.ak = function(pseq.subset, title_text,
  p1f = subset_taxa(pseq.subset, Genus %in% c("Akkermansia"))
  mphyseq = psmelt(p1f)
  mphyseq <- subset(mphyseq, Abundance > 0)
+ 
+  mnd <- levels(mphyseq$mnd) # get the variables
+  # Make a pairwise list that we want to compare.
+  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
+  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
+  
+  # Compare differences in Shannon index between mnd group of the study subjects
+  mphyseq$mnd <- factor(mphyseq$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
+  # on to the graphs!!!
+  print("The basic alpha diversity analysis has been completed")
+
+ 
  p <- ggplot(data = mphyseq, mapping = aes_string(x = "mnd",y = "Abundance")) +
    geom_violin(fill = NA) +
    geom_point(size = 1, alpha = 0.3,
               position = position_jitter(width = 0.3)) + scale_y_log10()+
-   theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) + theme_classic() + xlab('MND DALYs')
+   theme(legend.position="none") + scale_colour_manual(values = wes_palette(glob_theme)) + stat_compare_means(comparisons = mnd.pairs) + theme_classic() + xlab('MND DALYs')
  #library(rms)
 #fita <- lrm(mnd ~ gender + log(Abundance) + bmi_group + age_category, data =mphyseq)
 #fita <- lrm(mnd ~ gender + log(Abundance) , data =mphyseq)
