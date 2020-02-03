@@ -882,6 +882,47 @@ correlation.table <- associate(x, y, method = "spearman", mode = "table", p.adj.
 kable(head(correlation.table))
 ```
 
+```{r Abundance}
+
+abundance <- function(atlas.pseq, title_text){
+  pseq.ph <- aggregate_taxa(atlas.pseq, "Phylum")
+
+pseq.ph.rel <- microbiome::transform(pseq.ph, "compositional")
+
+plot.comp.rel <- plot_composition(pseq.ph.rel, x.label = "sample") +
+theme(legend.position = "bottom") + theme_bw() +
+theme(axis.text.x=element_blank()) + scale_fill_brewer(palette = "Paired") + guides(fill=guide_legend("Phylum")) + theme(legend.text = element_text( face="italic"))
+
+p <- plot.comp.rel
+ save_plot(paste(title_text,".png", sep = ""), p )
+
+}
+
+
+
+abundance.bar <- function(atlas.pseq, title_text){
+  p.new <- aggregate_taxa(atlas.pseq, "Phylum")
+
+p.new.rel <- microbiome::transform(p.new, "compositional")
+
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+
+p <- plot.p.new.rel + scale_fill_brewer(palette = "Paired")
+
+ save_plot(paste(title_text,".png", sep = ""), p )
+}
+
+
+abundance(atlas.pseq, "atlas_abundance")
+abundance(pseq.subset, "pseq_abundance")
+
+abundance.bar(atlas.pseq, "atlas_bar")
+abundance.bar(pseq.subset, "pseq_bar")
+
+
+```
+
+
 
 ```{r MNDtable summary}
 
