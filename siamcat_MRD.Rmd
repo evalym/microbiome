@@ -1,0 +1,2864 @@
+---
+title: "siamcat_MRD"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+SIAMCAT - Statistical Inference of Associations between Microbial Communities And host phenoTypes
+Goal: determine changes in community composition that are associated with environmental factors
+
+SIAMCAT provides a full pipeline supporting data preprocessing, statistical association testing, statistical modeling (LASSO logistic regression) including tools for evaluation and interpretation of these models (such as cross validation, parameter selection, ROC analysis and diagnostic model plots)
+
+```{r install}
+
+# can install it from Bioconductor
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+   # install.packages("BiocManager")
+# BiocManager::install("SIAMCAT", version = "3.10")
+
+# alternatively ca install the current development version via devtools
+require("devtools")
+devtools::install_github(repo = 'zellerlab/siamcat')
+
+setwd("/Users/maryam/Scripts/Microbiome") 
+
+# link on how to input own data into siamcat : https://bioconductor.org/packages/release/bioc/vignettes/SIAMCAT/inst/doc/SIAMCAT_read-in.html
+
+```
+
+
+########### Following https://konradzych.github.io/SIAMCAT/articles/SIAMCAT_vignette.html Vignette
+
+####Step 1: Read/Validate/Filter Data
+
+1. Load the SIAMCAT package and use the files included in SIAMCAT
+  The data are the same as used in the publication of Zeller et al., which demonstrated the potential of microbial markers in feacal samples to distinguish patients with colorectal cancer (CRC) from healthy controls.
+
+```{r}
+
+library(SIAMCAT)
+library(RColorBrewer)
+library(pROC)
+library(tidyverse)
+library(curatedMetagenomicData)
+library(ggpubr)
+
+# Load taxonomic levels onto feat
+fn.in.feat  <- system.file(
+    "extdata",
+    "feat_crc_study-pop-I_N141_tax_profile_mocat_bn_specI_clusters.tsv",
+    package = "SIAMCAT"
+)
+
+
+# Label groups into label
+fn.in.label <- system.file(
+    "extdata",
+    "label_crc_study-pop-I_N141_tax_profile_mocat_bn_specI_clusters.tsv",
+    package = "SIAMCAT"
+)
+
+
+# Load sample metadata
+fn.in.meta  <- system.file(
+    "extdata",
+    "num_metadata_crc_study-pop-I_N141_tax_profile_mocat_bn_specI_clusters.tsv",
+    package = "SIAMCAT"
+)
+
+```
+
+
+2. Access the files with the dedicated SIAMCAT functions and directly construct a SIAMCAT object containing the microbial features, the patient’s labels, and metadata for the patients
+```{r}
+
+# CAN'T FIND FUNCTIONS read.features
+# feat  <- read.features(fn.in.feat)
+
+
+
+# label <- read.labels(fn.in.label)
+# meta  <- read.meta(fn.in.meta)
+# siamcat <- siamcat(feat, label, meta)
+
+show(siamcat)
+
+# Show phyloseq object
+phyloseq <- physeq(siamcat)
+show(phyloseq)
+
+
+```
+
+
+```{r}
+
+# validate.data function ensures that we have labels for all the samples in features and vice versa.
+# ONLY call validate.data before starting the pipeline!
+#    siamcat <- validate.data(siamcat, verbose=1)
+
+
+# Should read:
+## Data succesfully validated
+
+```
+
+
+Data can also be sub-selected based on the available meta-data. For example, if we want to exclude patients that are too young or too old for the question of interest, we can do so easily with:
+```{r}
+
+#siamcat <- select.samples(
+#    siamcat,
+#    filter = 'age',
+#    allowed.set = NULL,
+#    allowed.range = c(20, 90),
+#    verbose = 2
+#)
+
+```
+
+####Step 2: Association/Confounder Testing
+
+Confounders are checked with the function check.confounders, which produces a plot for each possible confounder in the metadata and diverts the output into a pdf-file.
+
+```{r}
+
+check.confounders(siamcat,
+    fn.plot = 'conf_check.pdf')
+
+```
+
+
+Associations between microbial markers and the label can be tested with the check.associations function. The function computes a generalized fold change for the marker, the prevalence shift, a single feature AUC, and the significance of the associations. The significance is tested with a Wilcoxon test. The function again produces a pdf-file as output
+```{r}
+
+check.associations(
+    siamcat,
+    sort.by = 'fc',
+    fn.plot = 'assoc.pdf',
+    alpha = 0.05,
+    mult.corr = "fdr",
+    detect.lim = 10 ^-6,
+    plot.type = "quantile.box",
+    panels = c("fc", "prevalence", "auroc"))
+
+```
+
+
+#### Step 3: Model Building
+
+Construction of machine learning models on the basis of microbial markers. 
+SIAMCAT contains functions for data normalization, splitting the data into cross-validation folds, training the model, and making predictions based on cross-validation instances and the trained models.
+
+
+### Data Normalisation
+
+Data normalization is performed with the normalize.features function. Several control options are available, i.e. the normalization method (log.unit, log.std, rank.unit, rank.std, log.clr) or additional parameters. Here, we use the log.unit method:
+```{r}
+
+siamcat <- normalize.features(
+    siamcat,
+    norm.method = "log.unit",
+    norm.param = list(
+        log.n0 = 1e-06,
+        n.p = 2,
+        norm.margin = 1
+    ),
+    verbose = 2
+)
+
+```
+
+
+### Prepare Cross-Validation
+
+Preparation of the cross-validation fold is a crucial step in machine learning. 
+SIAMCAT greatly simplifies the set-up of cross-validation schemes, including stratification of samples or keeping samples inseperable based on metadata. For this small example, we choose a twice-repeated 5-fold cross-validation scheme. The data-split will be saved in the data_split slot of the siamcat object.
+
+```{r}
+
+siamcat <-  create.data.split(
+    siamcat,
+    num.folds = 5,
+    num.resample = 2,
+    stratify = TRUE,
+    inseparable = NULL,
+    verbose = 2
+)
+
+```
+
+
+### Model Training
+
+The actual model training is performed using the function train.model. 
+Again, multiple options for customization are available, ranging from the machine learning method to the measure for model selection or customizable parameter set for hyperparameter tuning. Here, we train a Lasso model and enforce at least 5 non-zero coefficients.
+
+```{r}
+siamcat <- train.model(
+    siamcat,
+    method = "lasso",
+    stratify = TRUE,
+    modsel.crit = list("pr"),
+    min.nonzero.coeff = 5,
+    param.set = NULL,
+    verbose = 3
+)
+
+
+```
+
+
+The models are saved in the model_list slot of the siamcat object. This slot stores objects of model_list-class. To get the complete list out of the SIAMCAT object:
+```{r}
+
+model_list <- model_list(siamcat)
+
+```
+
+
+This slot also stores information on which method was used to construct the model:
+```{r}
+
+model_type(siamcat)
+
+```
+
+Models can also be easily accessed:
+```{r}
+
+models <- models(siamcat)
+models[[1]]
+
+```
+
+
+### Make Predictions
+
+Using the data-split and the models trained in previous step, we can use the function make.predictions in order to apply the models on the test instances in the data-split. The predictions will be saved in the pred_matrix slot of the siamcat object.
+
+```{r}
+
+siamcat <- make.predictions(siamcat, verbose=0)
+pred_matrix <- pred_matrix(siamcat)
+head(pred_matrix)
+
+```
+
+
+#### Step 4: Model Evaluation and Interpretation
+
+In the final part, we want to find out how well the model performed and which microbial markers had been selected in the model. To do so, we first calculate how well the predictions fit the real data using the function evaluate.predictions. This function calculates the Area Under the Receiver Operating Characteristic (ROC) Curve (AU-ROC) and the Precision Recall (PR) Curve for each resampled cross-validation run. The results of the evaluation will be stored in the eval_data slot of the siamcat object.
+
+```{r}
+
+siamcat <-  evaluate.predictions(siamcat, verbose=2)
+
+```
+
+### Evaluation Plot
+
+To plot the results of the evaluation, we can use the function model.evaluation.plot, which produces a pdf-file showing the ROC and PR Curves for the different resamples runs as well as the mean ROC and PR Curve.
+
+```{r}
+
+model.evaluation.plot(siamcat,'eval_plot.pdf',verbose = 2)
+
+```
+
+Instead of the pdf-output, we can also access the evaluation data in the siamcat object directly and plot e.g. the ROC-Curves:
+```{r}
+
+# plot ROC Curves
+plot(
+    NULL,
+    xlim = c(0, 1),
+    ylim = c(0, 1),
+    xlab = 'False positive rate',
+    ylab = 'True positive rate',
+    type = 'n'
+)
+title('ROC curve for the model')
+abline(a = 0, b = 1, lty = 3)
+# for each resampled CV run
+eval_data <- eval_data(siamcat)
+for (r in 1:length(eval_data$roc.all)) {
+    roc.c = eval_data$roc.all[[r]]
+    lines(1 - roc.c$specificities, roc.c$sensitivities, 
+        col = gray(runif(1, 0.2, 0.8)))
+}
+# mean ROC curve
+roc.summ = eval_data$roc.average[[1]]
+lines(1 - roc.summ$specificities,
+    roc.summ$sensitivities,
+    col = 'black',
+    lwd = 2)
+# plot CI
+x = as.numeric(rownames(roc.summ$ci))
+yl = roc.summ$ci[, 1]
+yu = roc.summ$ci[, 3]
+polygon(1 - c(x, rev(x)), c(yl, rev(yu)), col = '#88888844' , border = NA)
+
+```
+
+
+### Interpretation Plot
+
+The final plot produced by SIAMCAT is the model interpretation plot, created by the model.interpretation.plot function. The plot shows for the top selected features the:
+
+- model weights (and how robust they are) as a barplot,
+- a heatmap with the z-scores or fold changes for the top selected features, and
+- a boxplot showing the proportions of weight per model which is captured by the top selected features.
+
+The function again produces a pdf-file.
+```{r}
+
+model.interpretation.plot(
+    siamcat,
+    fn.plot = 'interpretation.pdf',
+    consens.thres = 0.5,
+    #norm.models = TRUE,
+    limits = c(-3, 3),
+    heatmap.type = 'zscore',
+    verbose = 2
+)
+
+
+# show the z-score heatmap for the top selected feature
+# + model.interpretation.select.features
+
+```
+
+
+###### END OF THIS VIGNETTE ##########################
+
+
+##### WORKFLOW FROM https://siamcat.embl.de/articles/SIAMCAT_vignette.html
+
+As example dataset we use the data from the publication of Zeller et al, which demonstrated the potential of microbial species in fecal samples to distinguish patients with colorectal cancer (CRC) from healthy controls.
+```{r}
+
+library(SIAMCAT)
+
+data("feat_crc_zeller", package="SIAMCAT")
+data("meta_crc_zeller", package="SIAMCAT")
+
+
+```
+
+
+First, SIAMCAT needs a feature matrix (can be either a matrix, a data.frame, or a phyloseq-otu_table), which contains values of different features (in rows) for different samples (in columns). For example, the feature matrix included here contains relative abundances for bacterial species calculated with the mOTU profiler for 141 samples:
+
+```{r}
+
+feat.crc.zeller[1:3, 1:3]
+
+# Dimensions of object
+dim(feat.crc.zeller)
+
+```
+
+
+Metadata about the samples in another data.frame:
+```{r}
+
+head(meta.crc.zeller)
+
+```
+
+In order to tell SIAMCAT, which samples are cancer cases and which are healthy controls, we can construct a label object from the Group column in the metadata.
+```{r}
+
+label.crc.zeller <- create.label(meta=meta.crc.zeller, label='Group', case='CRC')
+
+```
+
+Now we have all the ingredients to create a SIAMCAT object
+
+
+```{r}
+
+siamcat <- siamcat(feat=feat.crc.zeller,
+    label=label.crc.zeller,
+    meta=meta.crc.zeller)
+
+```
+
+
+A few information about the siamcat object can be accessed with the show function from phyloseq (SIAMCAT builds on the phyloseq data structure):
+
+```{r}
+
+show(siamcat)
+
+```
+
+
+Since we have quite a lot of microbial species in the dataset at the moment, we can perform unsupervised feature selection using the function filter.features.
+```{r}
+
+siamcat <- filter.features(siamcat,
+    filter.method = 'abundance',
+    cutoff = 0.001)
+
+```
+
+
+#### Association Testing ####
+
+Associations between microbial species and the label can be tested with the check.associations function. The function computes for each species the significance using a non-parametric Wilcoxon test and different effect sizes for the association (e.g. AUC or fold change).
+
+The function produces a pdf file as output, since the plot is optimized for a landscape DIN-A4 layout, but can also used to plot on an active graphic device, e.g. in RStudio. The resulting plot then looks like that:
+```{r}
+
+siamcat <- check.associations(
+    siamcat,
+    sort.by = 'fc',
+    fn.plot = 'assoc2.pdf',
+    alpha = 0.05,
+    mult.corr = "fdr",
+    detect.lim = 10 ^-6,
+    plot.type = "quantile.box",
+    panels = c("fc", "prevalence", "auroc"))
+
+```
+
+
+##### Model Building ####
+
+One strength of SIAMCAT is the versatile but easy-to-use interface for the construction of machine learning models on the basis of microbial species. SIAMCAT contains functions for data normalization, splitting the data into cross-validation folds, training the model, and making predictions based on cross-validation instances and the trained models.
+
+
+#### Data Normalization
+
+Data normalization is performed with the normalize.features function. Here, we use the log.unit method, but several other methods and customization options are available (please check the documentation).
+
+```{r}
+
+siamcat <- normalize.features(
+    siamcat,
+    norm.method = "log.unit",
+    norm.param = list(
+        log.n0 = 1e-06,
+        n.p = 2,
+        norm.margin = 1
+    )
+)
+
+```
+
+
+#### Perpare Cross-Validation
+
+https://www.youtube.com/watch?v=fSytzGwwBVw
+
+Cross-Validation is basically how we decide which machine learning method would be best for our data set. CV allows us to compare different machine learning methods and get a sense of how well they will work in practice.
+
+Examples of machine learning methods:
+1. Logistic Regression
+2. K-nearest neighbours
+3. Support Vector Machines (SVM) ...etc.
+
+Need to do 2 things with collected data:
+1. Estimate parameters for machine learning methods. (training algorithm)
+2. Evaluate how well the machine learning method works. (testing algorithm)
+
+Terrible approach to use ALL the data to train algorithm bc wouldn't have any data left to test algorithm. - Data separated into blocks, different block combinations used to train model.
+
+
+Preparation of the cross-validation fold is a crucial step in machine learning. SIAMCAT greatly simplifies the set-up of cross-validation schemes, including stratification of samples or keeping samples inseperable based on metadata. For this small example, we choose a twice-repeated 5-fold (no. of blocks) cross-validation scheme. The data-split will be saved in the data_split slot of the siamcat object.
+```{r}
+
+siamcat <-  create.data.split(
+    siamcat,
+    num.folds = 5,
+    num.resample = 2
+)
+
+```
+
+
+#### Model Training
+
+The actual model training is performed using the function train.model. Again, multiple options for customization are available, ranging from the machine learning method to the measure for model selection or customizable parameter set for hyperparameter tuning.
+```{r}
+
+siamcat <- train.model(
+    siamcat,
+    method = "lasso"
+)
+
+
+siamcat <- train.model(
+    siamcat,
+    method = "enet"
+)
+
+
+siamcat <- train.model(
+    siamcat,
+    method = "ridge"
+)
+
+
+siamcat <- train.model(
+    siamcat,
+    method = "lasso_ll"
+)
+
+
+siamcat <- train.model(
+    siamcat,
+    method = "ridge_ll"
+)
+
+
+siamcat <- train.model(
+    siamcat,
+    method = "randomForest"
+)
+
+
+```
+
+The models are saved in the model_list slot of the siamcat object. The model building is performed using the mlr R package. All models can easily be accessed.
+```{r}
+
+# get information about the model type
+model_type(siamcat)
+
+# access the models
+models <- models(siamcat)
+models[[1]]
+
+```
+
+#### Make Predicitions
+
+Using the data-split and the models trained in previous step, we can use the function make.predictions in order to apply the models on the test instances in the data-split. The predictions will be saved in the pred_matrix slot of the siamcat object.
+
+```{r}
+
+siamcat <- make.predictions(siamcat)
+pred_matrix <- pred_matrix(siamcat)
+
+head(pred_matrix)
+
+```
+
+#### Model Evaluation and Interpretation ####
+
+In the final part, we want to find out how well the model performed and which microbial species had been selected in the model. In order to do so, we first calculate how well the predictions fit the real data using the function evaluate.predictions. This function calculates the Area Under the Receiver Operating Characteristic (ROC) Curve (AU-ROC) and the Precision Recall (PR) Curve for each resampled cross-validation run.
+
+```{r}
+
+siamcat <-  evaluate.predictions(siamcat)
+
+```
+
+
+#### Evaluation Plot
+
+To plot the results of the evaluation, we can use the function model.evaluation.plot, which produces a pdf-file showing the ROC and PR Curves for the different resamples runs as well as the mean ROC and PR Curve.
+
+```{r}
+
+model.evaluation.plot(siamcat)
+
+```
+
+#### Interpretation Plot
+
+The final plot produced by SIAMCAT is the model interpretation plot, created by the model.interpretation.plot function. The plot shows for the top selected features the:
+
+  - model weights (and how robust they are, i.e. in what proportion of models have they been incorporated) as a barplot
+
+  - a heatmap with the z-scores or fold changes for the top selected features
+
+  - a boxplot showing the proportions of weight per model which is captured by the top selected features.
+
+Additionally, the distribution of metadata is shown in a heatmap below.
+
+The function again produces a pdf-file optimized for a landscape DIN-A4 plotting region.
+
+```{r}
+
+model.interpretation.plot(
+    siamcat, 
+    fn.plot = 'interpretation2.pdf',
+    color.scheme = "BrBG",
+    consens.thres = 0.5,
+    heatmap.type = "zscore",
+    limits = c(-3, 3), detect.lim = 1e-06,
+    max.show = 50, prompt=TRUE, verbose = 1)
+
+```
+
+##### END OF THIS VIGNETTE ####
+
+
+
+##### STANDARD WORKFLOW FROM SUPPLEMENTARY NOTE 1 ####
+
+Standard workflow of the SIAMCAT package using as an example the dataset from Nielsen et al. Nat Biotechnol 2014. This dataset contains samples from patients with inflammatory bowel disease and from controls.
+Running the standard SIAMCAT pipeline, we produce the primary outputs of the package, namely the
+• Association plot
+• Confounder plots
+• Model evaluation plot
+• Model interpretation plot
+
+
+### Loading the Data
+
+The taxonomic abundance profiles and the sample meatadata for the example dataset are available through the curatedMetagenomicsData R package.
+```{r}
+
+library("tidyverse") 
+library("SIAMCAT") 
+library("curatedMetagenomicData") 
+library("ggpubr")
+
+meta.nielsen.full <- combined_metadata %>% filter(dataset_name=='NielsenHB_2014')
+
+```
+
+
+However, we have to clean the data a bit, since the data set contains samples from two different countries and two different disease subtypes.
+```{r}
+
+table(meta.nielsen.full$country)
+
+table(meta.nielsen.full$disease, meta.nielsen.full$disease_subtype)
+
+```
+
+Also, we have an additional problem, because we have more samples than individual subjects:
+```{r}
+
+print(length(unique(meta.nielsen.full$subjectID)))
+
+print(nrow(meta.nielsen.full))
+
+```
+
+
+
+Some subjects (but not all) had been sampled multiple times. Therefore, we want to remove repeated samplings for the same subject, since the samples would otherwise not be indepdenent from another (see also Figure 4 in the main manuscript).
+
+The visit number is encoded in the sampleID. Therefore, we can use this information to extract when the samples have been taken and use only the first visit for each subject.
+```{r}
+
+meta.nielsen <- meta.nielsen.full %>%
+  select(sampleID, subjectID, study_condition, disease_subtype, 
+disease, age, country, number_reads, median_read_length, BMI) %>%
+  mutate(visit=str_extract(sampleID, '_[0-9]+$')) %>%
+  mutate(visit=str_remove(visit, '_')) %>% 
+  mutate(visit=as.numeric(visit)) %>%
+  mutate(visit=case_when(is.na(visit)~0, TRUE~visit)) %>%
+  group_by(subjectID) %>% 
+  filter(visit==min(visit)) %>%
+  ungroup() %>%
+  mutate(Sample_ID=sampleID) %>%
+  mutate(Group=case_when(disease=='healthy'~'CTR', TRUE~disease_subtype)) 
+
+
+```
+
+
+Also, we want to restrict the dataset to Spanish samples only and to control samples and ulcerative colitis samples only. Additionally, we transform the metadata (which are stored as a tibble for easier handling) into a dataframe to hand it over to SIAMCAT.
+```{r}
+
+meta.nielsen.uc <- meta.nielsen %>% 
+  filter(Group %in% c('CTR', 'UC')) %>%
+  filter(country== 'ESP') %>%
+  as.data.frame()
+rownames(meta.nielsen.uc) <- meta.nielsen.uc$sampleID
+meta.nielsen.uc$sampleID <- NULL
+
+
+```
+
+
+#### Taxonomin Profiles
+
+Load the taxonomic profiles generated with MetaPhlAn2 via the curatedMetagenomicsData R package.
+
+```{r}
+
+x <- 'NielsenHB_2014.metaphlan_bugs_list.stool'
+feat <- curatedMetagenomicData(x=x, dryrun=FALSE)
+
+feat <- feat[[x]]@assayData$exprs
+
+```
+
+
+The MetaPhlAn2 profiles contain information on different taxonomic levels. Therefore, we want to restrict them to species-level profiles. In a second step, we convert them into relative abundances (summing up to 1) instead of using the percentages (summing up to 100) that MetaPhlAn2 outputs.
+```{r}
+
+feat <- feat[grep(x=rownames(feat), pattern='s__'),]
+feat <- feat[grep(x=rownames(feat),pattern='t__', invert = TRUE),]
+feat <- t(t(feat)/100)
+ 
+
+```
+
+The feature names are very long and may be a bit un-wieldy for plotting later on, so we shorten them to only the species name:
+```{r}
+
+rownames(feat) <- str_extract(rownames(feat), 's__.*$')
+                              
+```
+
+
+#### Create the SIAMCAT Object
+
+Now, we have everything ready to create a SIAMCAT object which stores the feature matrix, the meta-variables, and the label. Here, the label is created using the information in the metadata.
+```{r}
+
+sc.obj <- siamcat(feat=feat, meta=meta.nielsen.uc, label='Group', case='UC')
+
+```
+
+## Feature Filtering
+Now, we can filter feature with low overall abundance and prevalence.
+```{r}
+
+sc.obj <- filter.features(sc.obj, cutoff=1e-04, filter.method = 'abundance')
+
+sc.obj <- filter.features(sc.obj, cutoff=0.05,
+                          filter.method='prevalence',
+                          feature.type = 'filtered')
+
+```
+
+
+### Association Plot
+
+The check.assocation function calculates the significance of enrichment and metrics of association (such as generalized fold change and single-feautre AUROC).
+```{r}
+
+sc.obj <- check.associations(sc.obj, detect.lim = 1e-06, 
+                             alpha=0.1, 
+                             max.show = 20,
+                             plot.type = 'quantile.rect',
+                             fn.plot = './association_plot.pdf')
+
+
+```
+
+
+#### Confounder Analysis
+
+We can also check the supplied meta-variables for potential confounding.
+
+```{r}
+
+check.confounders(sc.obj, fn.plot = './confounders.pdf')
+
+```
+
+### Machine Learning Workflow
+
+Steps:
+• Feature normalization
+• Data splitting for cross-validation
+• Model training
+• Making model predictions (on left-out data)
+• Evaluating model predictions (using AUROC and AUPRC)
+
+```{r}
+
+sc.obj <- normalize.features(sc.obj, norm.method = 'log.std', norm.param = list(log.n0=1e-06, sd.min.q=0)) 
+## Features normalized successfully.
+
+sc.obj <- create.data.split(sc.obj, num.folds = 10, num.resample = 10) 
+## Features splitted for cross-validation successfully.
+
+sc.obj <- train.model(sc.obj, method='lasso')
+## Trained lasso models successfully.
+
+sc.obj <- make.predictions(sc.obj)
+## Made predictions successfully.
+
+sc.obj <- evaluate.predictions(sc.obj)
+## Evaluated predictions successfully. 
+
+
+```
+
+
+### Model Evaluation Plot
+The model evaluation plot will produce one plot with the ROC curve and another one with the precision-recall curve (not shown here).
+```{r}
+
+model.evaluation.plot(sc.obj, fn.plot = './eval_plot.pdf')
+
+```
+
+
+### Model Interpretation Plot
+The model interpretation plot can give you additional information about the trained machine learning model. It will show you:
+  • the feature importance as barplot,
+  • the feature robustness (in how many of the models in the repeated cross-validation this feature has
+been selected into the model),
+  • the normalized feature abundances across samples as heatmap,
+  • the optional metadata as heatmap below, and
+  • a boxplot showing the proportion of the model weight that is explained by
+the selected features.
+```{r}
+
+model.interpretation.plot(sc.obj, consens.thres = 0.8, fn.plot = './interpretation.pdf')
+
+```
+
+
+### Confounder Analysis
+As already mentioned above, the Nielsen dataset contains samples from both Spain and Denmark. Let us see what the result would be if we had not removed them.
+
+First, we create a SIAMCAT object again, this time including the Danish controls:
+```{r}
+
+meta.nielsen.uc.dnk <- meta.nielsen %>%
+  filter(Group %in% c('CTR', 'UC')) %>%
+  # filter(country == ESP) %>% # this time we do not remove Danish samples
+  as.data.frame() 
+
+rownames(meta.nielsen.uc.dnk) <- meta.nielsen.uc.dnk$sampleID
+meta.nielsen.uc.dnk$sampleID <- NULL
+
+sc.obj.dnk <- siamcat(feat=feat, meta=meta.nielsen.uc.dnk, label='Group', case='UC') 
+
+sc.obj.dnk <- filter.features(sc.obj.dnk, cutoff = 1e-04,
+                              filter.method = 'abundance')
+
+sc.obj.dnk <- filter.features(sc.obj.dnk, cutoff = 0.05,
+                              filter.method = 'prevalence',
+                              feature.type = 'filtered')
+
+
+```
+
+The confounder plot would show us that the meta-variable “country” might be problematic:
+```{r}
+
+check.confounders(sc.obj.dnk, fn.plot = './confounders_dnk.pdf')
+
+```
+
+
+### Association Testing
+
+```{r}
+
+sc.obj.dnk <- check.associations(sc.obj.dnk, detect.lim = 1e-06,
+                                 alpha = 0.1, max.show = 20,
+                                 plot.type = 'quantile.rect',
+                                 fn.plot = './associations_plot_dnk.pdf')
+
+```
+
+
+Confounders can lead to biases in association testing. After using SIAMCAT to test for associations in both datasets (one time including the Danish samples, the other time restricted to samples from Spain only), we can extract the association metrics from both SIAMCAT objects and compare them in a scatter plot.
+
+```{r}
+
+assoc.sp <- associations(sc.obj) 
+assoc.sp$species <- rownames(assoc.sp) 
+assoc.sp_dnk <- associations(sc.obj.dnk) 
+assoc.sp_dnk$species <- rownames(assoc.sp_dnk)
+
+df.plot <- full_join(assoc.sp, assoc.sp_dnk, by='species')
+df.plot %>%
+  mutate(highlight=str_detect(species, 'Dorea_formicigenerans')) %>%
+  ggplot(aes(x=-log10(p.adj.x), y=-log10(p.adj.y), col=highlight)) +
+  geom_point(alpha=0.3) + 
+  xlab('Spanish samples only\n-log10(q)') +
+  ylab('Spanish and Danish samples only\n-log10(q)') +
+  theme_classic() +
+  theme(panel.grid.major = element_line(colour = 'lightgrey'), aspect.ratio = 1.3) +
+  scale_colour_manual(values=c('darkgrey', '#D41645'), guide = FALSE) +
+  annotate('text', x=0.7, y=8, label='Dorea formicigenerans')
+
+```
+This result shows that several species are only signficant if the Danish control samples are included, but not when considering only the Spanish samples.
+As an example, we highlighted the species “Dorea formicigenerans” in the plot above. The test is not significant in the Spanish cohort, but is highly significant when the Danish samples are included.
+
+```{r}
+
+# Extract information out of the siamcat object
+feat.dnk <- get.filt_feat.matrix(sc.obj.dnk)
+label.dnk <- label(sc.obj.dnk)$label
+country <- meta(sc.obj.dnk)$country
+names(country) <- rownames(meta(sc.obj.dnk))
+
+df.plot <- tibble(dorea=log10(feat.dnk['s__Dorea_formicigenerans',
+                                       names(label.dnk)] + 1e-05),
+                  label=label.dnk, country=country) %>%
+  mutate(label=case_when(label=='-1'~'CTR', TRUE~"UC")) %>%
+  mutate(x_value=paste0(country, '_', label))
+
+df.plot %>%
+  ggplot(aes(x=x_value, y=dorea)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.08, stroke=0, alpha=0.2) +
+  theme_classic() +
+  xlab('') +
+  ylab("log10(Dorea_formicigenerans") +
+  stat_compare_means(comparisons = list(c('DNK_CTR', 'ESP_CTR'),
+                                        c('DNK_CTR', 'ESP_UC'),
+                                        c('ESP_CTR', 'ESP_UC'))) +
+  theme(aspect.ratio = 1.3)
+
+```
+
+
+### Machine Learning
+The results from the machine learning workflows can also be biased by the differences between countries, leading to exaggerated performance estimates.
+
+```{r}
+
+sc.obj.dnk <- normalize.features(sc.obj.dnk, norm.method = 'log.std', 
+                                 norm.param = list(log.n0=1e-06, sd.min.q=0))
+
+sc.obj.dnk <- create.data.split(sc.obj.dnk, num.folds = 10, num.resample = 10)
+
+sc.obj.dnk <- train.model(sc.obj.dnk, method = 'lasso')
+
+sc.obj.dnk <- make.predictions(sc.obj.dnk)
+
+sc.obj.dnk <- evaluate.predictions(sc.obj.dnk)
+
+```
+
+
+When we compare the performance of the two different models, the model with the Danish and Spanish samples included seems to perform better (higher AUROC value). However, the previous analysis suggests that this performance estimate is biased and exaggerated because differences between Spanish and Danish samples can be very large.
+
+```{r}
+
+model.evaluation.plot("Spanish samples only"=sc.obj,
+                      "Danish and Spanish samples"=sc.obj.dnk,
+                      fn.plot = './eval_plot_dnk.pdf')
+
+```
+
+
+To demonstrate how machine learning models can exloit this confounding factor, we can train a model to distinguish between Spanish and Danish control samples. As you can see, the model can distinguish between the two countries with almost perfect accuracy.
+
+```{r}
+
+meta.nielsen.country <- meta.nielsen %>%
+  filter(Group %in% c('CTR')) %>% # only control samples
+  # filter(country == 'ESP') %>% # this time we do not remove danish samples
+  as.data.frame()
+rownames(meta.nielsen.country) <- meta.nielsen.country$sampleID
+meta.nielsen.country$sampleID <- NULL
+
+sc.obj.country <- siamcat(feat=feat, meta=meta.nielsen.country,
+                          label='country', case='ESP')
+
+sc.obj.country <- filter.features(sc.obj.country, cutoff = 1e-04,
+                                  filter.method = 'abundance')
+
+sc.obj.country <- filter.features(sc.obj.country, cutoff = 0.05,
+                                  filter.method = 'prevalence',
+                                  feature.type = 'filtered')
+
+sc.obj.country <- normalize.features(sc.obj.country, norm.method = 'log.std',
+                                     norm.param = list(log.n0=1e-06,
+                                                       sd.min.q=0))
+
+sc.obj.country <- create.data.split(sc.obj.country,
+                                    num.folds = 10, num.resample = 10)
+
+sc.obj.country <- train.model(sc.obj.country, method = 'lasso')
+
+sc.obj.country <- make.predictions(sc.obj.country)
+
+sc.obj.country <- evaluate.predictions(sc.obj.country)
+
+model.evaluation.plot(sc.obj.country, fn.plot = './eval_plot_country.pdf')
+
+
+
+```
+
+
+#### END OF VIGNETTE ####
+
+
+#### CD META-ANALYSIS from supplementary note II ####
+
+We want to demonstrate how SIAMCAT can facilitate metagenomic meta-analyses. Here, we use the example of Crohn’s disease (CD), since we have taxonomic profiles from five different metagenomic datasets available.
+
+First, we load the data for all studies:
+
+
+Standard workflow of the SIAMCAT package using as an example the dataset from Nielsen et al. Nat Biotechnol 2014. This dataset contains samples from patients with inflammatory bowel disease and from controls.
+Running the standard SIAMCAT pipeline, we produce the primary outputs of the package, namely the
+• Association plot
+• Confounder plots
+• Model evaluation plot
+• Model interpretation plot
+
+
+### Loading the Data
+
+The taxonomic abundance profiles and the sample meatadata for the example dataset are available through the curatedMetagenomicsData R package.
+```{r}
+
+meta.nielsen.full <- combined_metadata %>% filter(dataset_name=='NielsenHB_2014')
+
+```
+
+
+However, we have to clean the data a bit, since the data set contains samples from two different countries and two different disease subtypes.
+```{r}
+
+table(meta.nielsen.full$country)
+
+table(meta.nielsen.full$disease, meta.nielsen.full$disease_subtype)
+
+```
+
+Also, we have an additional problem, because we have more samples than individual subjects:
+```{r}
+
+print(length(unique(meta.nielsen.full$subjectID)))
+
+print(nrow(meta.nielsen.full))
+
+```
+
+
+Some subjects (but not all) had been sampled multiple times. Therefore, we want to remove repeated samplings for the same subject, since the samples would otherwise not be indepdenent from another (see also Figure 4 in the main manuscript).
+
+The visit number is encoded in the sampleID. Therefore, we can use this information to extract when the samples have been taken and use only the first visit for each subject.
+```{r}
+
+meta.nielsen <- meta.nielsen.full %>%
+  select(sampleID, subjectID, study_condition, disease_subtype, 
+disease, age, country, number_reads, median_read_length, BMI) %>%
+  mutate(visit=str_extract(sampleID, '_[0-9]+$')) %>%
+  mutate(visit=str_remove(visit, '_')) %>% 
+  mutate(visit=as.numeric(visit)) %>%
+  mutate(visit=case_when(is.na(visit)~0, TRUE~visit)) %>%
+  group_by(subjectID) %>% 
+  filter(visit==min(visit)) %>%
+  ungroup() %>%
+  mutate(Sample_ID=sampleID) %>%
+  mutate(Group=case_when(disease=='healthy'~'CD', TRUE~disease_subtype)) 
+
+
+```
+
+
+Also, we want to restrict the dataset to Spanish samples only and to control samples and ulcerative colitis samples only. Additionally, we transform the metadata (which are stored as a tibble for easier handling) into a dataframe to hand it over to SIAMCAT.
+```{r}
+
+meta.nielsen.uc <- meta.nielsen %>% 
+  filter(Group %in% c('CTR', 'CD')) %>%
+  filter(country== 'ESP') %>%
+  as.data.frame()
+rownames(meta.nielsen.uc) <- meta.nielsen.uc$sampleID
+meta.nielsen.uc$sampleID <- NULL
+
+
+```
+
+
+#### Taxonomin Profiles
+
+Load the taxonomic profiles generated with MetaPhlAn2 via the curatedMetagenomicsData R package.
+
+```{r}
+
+x <- 'NielsenHB_2014.metaphlan_bugs_list.stool'
+feat <- curatedMetagenomicData(x=x, dryrun=FALSE)
+
+feat <- feat[[x]]@assayData$exprs
+
+```
+
+
+
+
+
+##### END OF THIS VIGNETTE ####
+
+
+Potential of microbial species in fecal samples to distinguish patients with colorectal cancer (CRC) from healthy controls
+```{r load files}
+
+# load files
+library(SIAMCAT)
+
+data("feat_crc_zeller", package="SIAMCAT")
+data("meta_crc_zeller", package="SIAMCAT")
+
+
+# show features
+feat.crc.zeller[1:3, 1:3]
+dim(feat.crc.zeller)
+
+
+# show meta
+head(meta.crc.zeller)
+
+
+# create label
+label.crc.zeller <- create.label(meta=meta.crc.zeller,
+    label='Group', case='CRC')
+
+
+# start
+siamcat <- siamcat(feat=feat.crc.zeller,
+    label=label.crc.zeller,
+    meta=meta.crc.zeller)
+
+
+# show siamcat
+show(siamcat)
+
+
+# filter feautures
+siamcat <- filter.features(siamcat,
+    filter.method = 'abundance',
+    cutoff = 0.001)
+
+
+```
+```{r code box code from paper}
+
+# conducts entire analysis
+# feat = relaive abundance matrix
+# meta = meta-variables about samples as a dataframe, containing column called 'disease' which encodes the label
+
+
+sc.obj <- siamcat(feat=feat, meta=meta, label='disease')
+sc.obj <- filter.features(sc.obj, filter.method = 'abundance')
+     
+# produces Fig. 1b
+sc.obj <- check.associations(sc.obj, 
+                             fn.plot = 'associations_plot.pdf') 
+
+# produces Fig. 1c
+check.confounders(sc.obj,
+                  fn.plot = 'confounder_plot.pdf') 
+sc.obj <- normalize.features(sc.obj, norm.method = 'log.std') sc.obj <- create.data.split(sc.obj)
+sc.obj <- train.model(sc.obj, method='lasso')
+sc.obj <- make.predictions(sc.obj)
+sc.obj <- evaluate.predictions(sc.obj)
+
+# produces Fig. 1d 
+model.evaluation.plot(sc.obj,
+                      fn.plot = 'evaluation.pdf') 
+
+ # produces Fig. 1e
+model.interpretation.plot(sc.obj,consens.thres = 0.8,
+                          fn.plot = 'interpretation.pdf')
+
+
+
+
+
+```
+
+```{r check associations}
+# The result of the check.associations function is an association plot. For significantly associated microbial features, the plot shows:
+  # - the abundances of the features across the two different classes (CRC vs. controls)
+  # - the significance of the enrichment calculated by a Wilcoxon test (after multiple hypothesis testing correction)
+  # - the generalized fold change of each feature
+  # - the prevalence shift between the two classes, and
+  # - the Area Under the Receiver Operating Characteristics Curve (AU-ROC) as non-parametric effect size measure.
+
+# check assosications 
+siamcat <- check.associations(
+      siamcat,
+      sort.by = 'fc',
+      alpha = 0.05,
+      mult.corr = "fdr",
+      detect.lim = 10 ^-6,
+      plot.type = "quantile.box",
+      panels = c("fc", "prevalence", "auroc"))
+```
+
+
+```{r check associations}
+# normalise features
+siamcat <- normalize.features(
+    siamcat,
+    norm.method = "log.unit",
+    norm.param = list(
+        log.n0 = 1e-06,
+        n.p = 2,
+        norm.margin = 1
+    )
+)
+
+
+# data split
+siamcat <-  create.data.split(
+    siamcat,
+    num.folds = 5,
+    num.resample = 2
+)
+
+
+# train model
+siamcat <- train.model(
+    siamcat,
+    method = "lasso"
+)
+
+
+# show models
+# get information about the model type
+model_type(siamcat)
+
+
+# access the models
+models <- models(siamcat)
+models[[1]]
+
+
+# make predictions ,  message=FALSE, results='hide'
+siamcat <- make.predictions(siamcat)
+pred_matrix <- pred_matrix(siamcat)
+
+
+# pred_matrix_head
+head(pred_matrix)
+
+
+# evaluate predictions
+siamcat <-  evaluate.predictions(siamcat)
+
+
+# evaluate plot , fig.height=6, fig.width=6, fig.align='left', message=FALSE
+model.evaluation.plot(siamcat)
+
+
+
+# model interpretation plot
+
+# After statistical models have been trained to distinguish cancer cases from controls, the models can be investigated by the function model.interpretation.plot. The plots shows:
+
+  # - the median relative feature weight for selected features (barplot on the left)
+  # - the robustness of features (i.e. in how many of the models the specific feature has been selected)
+  # - the distribution of selected features across samples (central heatmap)
+  # - which proportion of the weight of all different models are shown in the plot (boxplot on the right), and
+  # - distribution of metadata across samples (heatmap below).
+
+model.interpretation.plot(
+      siamcat,
+      fn.plot = 'interpretation.pdf',
+      consens.thres = 0.5,
+      norm.models = TRUE,
+      limits = c(-3, 3),
+      heatmap.type = 'zscore',
+  )
+
+```
+
+
+
+
+```{r}
+
+#### CHECK ASSOCIATIONS
+
+#'@details For each feature, this function calculates different measures of
+#'     association between the feature and the label. In detail, these
+#'     associations are: \itemize{
+#'     \item Significance as computed by a Wilcoxon test followed by multiple
+#'     hypothesis testing correction.
+#'     \item AUROC (Area Under the Receiver Operating Characteristics Curve)
+#'     as a non-parameteric measure of enrichment (corresponds to the effect
+#'     size of the Wilcoxon test).
+#'     \item The generalized Fold Change (gFC) is a pseudo fold change
+#'     which is calculated as geometric mean of the differences between the
+#'     quantiles for the different classes found in the label.
+#'     \item The prevalence shift between the two different classes found in
+#'     the label.
+#'     }
+#'
+#'     Finally, the function produces a plot of the top \code{max.show}
+#'     associated features at a user-specified significance level \code{alpha},
+#'     showing the distribution of the log10-transformed abundances for both
+#'     classes, and user-selected panels for the effect (AU-ROC, Prevalence
+#'     Shift, and Fold Change).
+
+
+check.associations <- function(siamcat, fn.plot=NULL, color.scheme = "RdYlBu",
+    alpha = 0.05, mult.corr = "fdr", sort.by = "fc", detect.lim = 1e-06,
+    pr.cutoff = 1e-6, max.show = 50, plot.type = "quantile.box",
+    panels = c("fc", "auroc"), prompt=TRUE, feature.type='filtered',
+    verbose = 1) {
+
+        if (verbose > 1)
+            message("+ starting check.associations")
+        s.time <- proc.time()[3]
+
+        # check panel and plot.type parameter
+        if (!all(panels %in% c("fc", "auroc", "prevalence"))) {
+            stop("Unknown panel-type selected!")
+        }
+        panels <- unique(panels)
+        if (length(panels) > 3) {
+            warning(
+                "Plot layout is not suited for more than 3 panels.
+                Continuing with first three panels."
+            )
+            panels <- panels[seq_len(3)]
+        }
+        if ((!plot.type %in%
+                c("bean", "box", "quantile.box", "quantile.rect")) ||
+                length(plot.type) != 1) {
+            warning("Plot type has not been specified properly! Continue with",
+                    " quantile.box.")
+            plot.type <- "quantile.box"
+        }
+        if (!feature.type %in% c('original', 'filtered', 'normalized')){
+            stop("Unrecognised feature type, exiting...\n")
+        }
+        # get features
+        if (feature.type == 'original'){
+            feat <- get.orig_feat.matrix(siamcat)
+        } else if (feature.type == 'filtered'){
+            if (is.null(filt_feat(siamcat, verbose=0))){
+                stop('Features have not yet been filtered, exiting...\n')
+            }
+            feat <- get.filt_feat.matrix(siamcat)
+        } else if (feature.type == 'normalized'){
+            if (is.null(norm_feat(siamcat, verbose=0))){
+                stop('Features have not yet been normalized, exiting...\n')
+            }
+            feat <- get.norm_feat.matrix(siamcat)
+        }
+
+        if (any(is.na(feat))){
+            stop('Features contain NAs. Exiting...')
+        }
+        if ((any(colSums(feat) > 1.01) | any(feat < -0.01)) &
+            feature.type != 'normalized'){
+            stop('This function expects compositional data. Exiting...')
+        }
+        # check label
+        label <- label(siamcat)
+        if (label$type == 'TEST'){
+            stop('Can not check assocations for a',
+            ' SIAMCAT object with TEST label! Exiting...')
+        }
+        # check fn.plot
+        if (is.null(fn.plot)) {
+            message(paste0('### WARNING: Not plotting to a pdf-file.\n',
+                '### The plot is optimized for landscape DIN-A4 (or similar) ',
+                'layout.\n### Please make sure that your plotting region is',
+                ' large enough!!!\n### Use at your own risk...'))
+            if (prompt == TRUE){
+                continue <- askYesNo('Are you sure that you want to continue?',
+                    default = TRUE,
+                    prompts = getOption("askYesNo",
+                        gettext(c("Yes", "No", "Cancel"))))
+            } else {
+                continue <- TRUE
+            }
+            if (!continue || is.na(continue)){
+                opt <- options(show.error.messages = FALSE)
+                on.exit(options(opt))
+                stop('Exiting...')
+            }
+            par.old <- par(no.readonly=TRUE)
+        }
+        # either give n_classes colors or color palette
+        col <- check.color.scheme(color.scheme, label)
+
+
+        ### Calculate different effect sizes
+        if (verbose > 2)
+            message("+++ analysing features\n")
+        probs.fc <- seq(.1, .9, .05)
+        if (is.null(associations(siamcat, verbose=0))){
+            result.list <- analyse.binary.marker(
+                feat = feat,
+                label = label,
+                detect.lim = detect.lim,
+                colors = col,
+                pr.cutoff = pr.cutoff,
+                mult.corr = mult.corr,
+                alpha = alpha,
+                probs.fc = probs.fc,
+                take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                verbose = verbose
+            )
+            # update siamcat
+            associations(siamcat) <- list(
+                assoc.results=result.list$effect.size,
+                assoc.param=list(detect.lim=result.list$detect.lim,
+                    pr.cutoff=pr.cutoff, probs.fc=probs.fc,
+                    mult.corr=mult.corr, alpha=alpha,
+                    feature.type=feature.type))
+        } else {
+            # if already existing, check parameters
+            old.params <- assoc_param(siamcat)
+            new.params <- list(detect.lim=detect.lim,
+                pr.cutoff=pr.cutoff, probs.fc=probs.fc,
+                mult.corr=mult.corr, alpha=alpha,
+                feature.type=feature.type)
+            # if the same, don't compute again but rather use the old resutls
+            if (any(all.equal(new.params, old.params) == TRUE)) {
+                result.list <- list()
+                result.list$effect.size <- associations(siamcat)
+                result.list$detect.lim <- assoc_param(siamcat)$detect.lim
+            } else {
+                result.list <- analyse.binary.marker(
+                    feat = feat,
+                    label = label,
+                    detect.lim = detect.lim,
+                    colors = col,
+                    pr.cutoff = pr.cutoff,
+                    mult.corr = mult.corr,
+                    alpha = alpha,
+                    probs.fc = probs.fc,
+                    take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                    verbose = verbose
+                )
+                # update siamcat
+                associations(siamcat) <- list(
+                    assoc.results=result.list$effect.size,
+                    assoc.param=list(detect.lim=result.list$detect.lim,
+                        pr.cutoff=pr.cutoff, probs.fc=probs.fc,
+                        mult.corr=mult.corr, alpha=alpha,
+                        feature.type=feature.type))
+            }
+        }
+
+        ########################################################################
+        # extract relevant info for plotting
+        temp <- get.plotting.idx(result.list$effect.size, alpha=alpha,
+            sort.by=sort.by, max.show=max.show, verbose=verbose)
+        if (is.null(temp)){
+            return(siamcat)
+        }
+        effect.size <- result.list$effect.size[temp$idx, , drop=FALSE]
+        truncated <- temp$truncated
+        detect.lim <- result.list$detect.lim
+        feat.red    <- feat[temp$idx, , drop=FALSE]
+
+        if (feature.type == 'normalized'){
+            feat.plot <- feat.red
+        } else {
+            feat.red.log <- log10(feat.red + detect.lim)
+            feat.plot <- feat.red.log
+        }
+        ########################################################################
+        ### generate plots with significant associations between
+        ##      features and labels
+
+        # make plot matrix dependent on panels parameters
+        if (verbose > 2)
+            message("+++ preparing plotting layout")
+        if (length(panels) == 3) {
+            layout.mat <- cbind(2, 1, t(seq(3, length.out = length(panels))))
+            widths <- c(0.5, 0.1, rep(0.4 / 3, length(panels)))
+        } else {
+            layout.mat <- cbind(2, 1, t(seq(3, length.out = length(panels))))
+            widths <- c(0.5, 0.1, rep(0.2, length(panels)))
+        }
+        if (!is.null(fn.plot)) {
+            pdf(fn.plot,
+                paper = 'special',
+                height = 8.27,
+                width = 11.69) # format:A4 landscape
+            }
+
+        layout(mat = layout.mat, widths = widths)
+
+        ########################################################################
+        # PANEL 2: P-VALUES
+        # print p-values in second panel of the plot
+        associations.pvals.plot(p.vals = effect.size$p.adj,
+            alpha = alpha, mult.corr = mult.corr,
+            verbose = verbose)
+
+        ########################################################################
+        # PANEL 1: DATA
+        # prepare margins
+        associations.margins.plot(species_names = row.names(feat.red),
+            verbose = verbose)
+
+
+        if (verbose > 2)
+            message("+++ plotting results")
+        if (plot.type == "bean") {
+            associations.bean.plot(feat.plot,
+                label,
+                col = col,
+                take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                verbose = verbose)
+        } else if (plot.type == "box") {
+            associations.box.plot(feat.plot,
+                label,
+                take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                col = col,
+                verbose = verbose)
+        } else if (plot.type == "quantile.box") {
+            associations.quantile.box.plot(feat.plot,
+                label,
+                col = col,
+                take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                verbose = verbose)
+        } else if (plot.type == "quantile.rect") {
+            associations.quantile.rect.plot(feat.plot,
+                label,
+                col = col,
+                take.log=ifelse(feature.type == 'normalized', FALSE, TRUE),
+                verbose = verbose)
+        }
+
+        # plot title
+        xlab <- ifelse(feature.type=='normalized',
+                    'Normalized abundance', 'Abundance (log10-scale)')
+        if (!truncated) {
+            title(main = 'Differentially abundant features', xlab = xlab)
+        } else {
+            title(
+                main = paste(
+                    'Differentially abundant features\nshowing top',
+                    max.show,
+                    'features'
+                ), xlab = xlab)
+        }
+
+        ########################################################################
+        # OTHER PANELS
+        for (p in panels) {
+            if (p == "fc") {
+                associations.fcs.plot(
+                    fc.all = effect.size$fc,
+                    binary.cols = effect.size$bcol,
+                    verbose = verbose
+                )
+            } else if (p == "prevalence") {
+                associations.pr.shift.plot(
+                    pr.shifts = effect.size[,c('pr.n', 'pr.p')],
+                    col = col,
+                    verbose = verbose
+                )
+            } else if (p == "auroc") {
+                associations.aucs.plot(
+                    aucs = effect.size[, c('auc', 'auc.ci.l', 'auc.ci.h')],
+                    binary.cols = effect.size$bcol,
+                    verbose = verbose
+                )
+            }
+        }
+
+        # close pdf device
+        if (!is.null(fn.plot)) {
+            tmp <- dev.off()
+        } else {
+            par(par.old)
+        }
+        e.time <- proc.time()[3]
+        if (verbose > 1)
+            message(paste(
+                "+ finished check.associations in",
+                formatC(e.time - s.time, digits = 3),
+                "s"
+            ))
+        if (verbose == 1 & !is.null(fn.plot))
+            message(paste(
+                "Plotted associations between features and label",
+                "successfully to:", fn.plot
+            ))
+        return(siamcat)
+    }
+
+# ##############################################################################
+### AUC
+#' @keywords internal
+associations.aucs.plot <- function(aucs, binary.cols, verbose = 1) {
+    if (verbose > 2)
+        message("+ starting associations.aucs.plot")
+    # set margins
+    par(mar = c(5.1, 0, 4.1, 1.6))
+    # plot background
+    plot(
+        NULL,
+        xlab = '',
+        ylab = '',
+        xaxs = 'i',
+        yaxs = 'i',
+        axes = FALSE,
+        xlim = c(0, 1),
+        ylim = c(0.5, nrow(aucs) + 0.5),
+        type = 'n'
+    )
+    ticks <- seq(0, 1.0, length.out = 5)
+    tick.labels <- formatC(ticks, digits = 2)
+    # plot gridlines
+    for (v in ticks) {
+        abline(v = v,
+            lty = 3,
+            col = 'lightgrey')
+    }
+    # make thicker line at .5
+    abline(v = .5, lty = 1, col = 'lightgrey')
+    # plot single feature aucs
+    for (i in seq_len(nrow(aucs))) {
+        segments(
+            x0 = aucs[i, 2],
+            x1 = aucs[i, 3],
+            y0 = i,
+            col = 'lightgrey',
+            lwd = 1.5
+        )
+        points(aucs[i, 1], i, pch = 18, col = binary.cols[i])
+        points(aucs[i, 1],
+            i,
+            pch = 5,
+            col = 'black',
+            cex = 0.9)
+    }
+
+    # Title and axis label
+    axis(
+        side = 1,
+        at = ticks,
+        labels = tick.labels,
+        cex.axis = 0.7
+    )
+    title(main = 'Feature AUCs', xlab = 'AU-ROC')
+    if (verbose > 2)
+        message("+ finished associations.aucs.plot")
+}
+
+# ##############################################################################
+### FC
+#' @keywords internal
+associations.fcs.plot <-
+    function(fc.all, binary.cols,    verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.fcs.plot")
+        # margins
+        par(mar = c(5.1, 0, 4.1, 1.6))
+        # get minimum and maximum fcs
+        mx <- max(ceiling(abs(
+            range(fc.all, na.rm = TRUE, finite = TRUE)
+        )))
+        mn <- -mx
+        # plot background
+        plot(
+            NULL,
+            xlab = '',
+            ylab = '',
+            xaxs = 'i',
+            yaxs = 'i',
+            axes = FALSE,
+            xlim = c(mn, mx),
+            ylim = c(0.2, length(fc.all) + 0.2),
+            type = 'n'
+        )
+        grid(NULL, NA, lty = 3, col = 'lightgrey')
+        # plot bars
+        barplot(
+            fc.all,
+            horiz = TRUE,
+            width = 0.6,
+            space = 2 / 3,
+            col = binary.cols,
+            axes = FALSE,
+            add = TRUE,
+            names.arg = FALSE
+        )
+        # gridlines and axes labels
+        ticks <- seq(from = mn,
+            to = mx,
+            length.out = 5)
+        tick.labels <- formatC(ticks, digits = 2)
+        axis(
+            side = 1,
+            at = ticks,
+            labels = tick.labels,
+            cex.axis = 0.7
+        )
+        title(main = 'Fold change', xlab = 'Generalized fold change')
+        if (verbose > 2)
+            message("+ finished associations.fcs.plot")
+    }
+
+# ##############################################################################
+### PREVALENCE
+#' @keywords internal
+associations.pr.shift.plot <-
+    function(pr.shifts, col, verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.pr.shift.plot")
+        # margins
+        par(mar = c(5.1, 0, 4.1, 1.6))
+
+        # plot background
+        plot(
+            NULL,
+            xlab = '',
+            ylab = '',
+            xaxs = 'i',
+            yaxs = 'i',
+            axes = FALSE,
+            xlim = c(0, 1),
+            ylim = c(0.2, nrow(pr.shifts) + 0.2),
+            type = 'n'
+        )
+        # gridlines and axes labels
+        ticks <- seq(from = 0,
+            to = 1,
+            length.out = 5)
+        for (v in ticks) {
+            abline(v = v,
+                lty = 3,
+                col = 'lightgrey')
+        }
+        tick.labels <- formatC(ticks * 100, digits = 3)
+        axis(
+            side = 1,
+            at = ticks,
+            labels = tick.labels,
+            cex.axis = 0.7
+        )
+        # plot bars
+        row.names(pr.shifts) <- NULL
+        barplot(
+            t(pr.shifts),
+            horiz = TRUE,
+            axes = FALSE,
+            add = TRUE,
+            space = c(0, 4 / 3),
+            beside = TRUE,
+            width = .3,
+            col = c(col[1], col[2])
+        )
+        title(main = 'Prevalence shift', xlab = 'Prevalence [%]')
+        if (verbose > 2)
+            message("+ finished associations.pr.shift.plot")
+    }
+
+# ##############################################################################
+# P-VALUES
+#' @keywords internal
+associations.pvals.plot <- function(p.vals, alpha,  mult.corr,  verbose = 1) {
+    if (verbose > 2)
+        message("+ starting associations.pvals.plot")
+    # margins
+    par(mar = c(5.1, .0, 4.1, 1.6))
+    p.vals.log <- -log10(p.vals)
+    # get minimum and maximum
+    mx <-
+        max(ceiling(abs(
+            range(p.vals.log, na.rm = TRUE, finite = TRUE)
+        )))
+    mn <- 0
+    p.vals.log[is.infinite(p.vals.log)] <- mx
+    # plot background
+    plot(
+        NULL,
+        xlab = '',
+        ylab = '',
+        xaxs = 'i',
+        yaxs = 'i',
+        axes = FALSE,
+        xlim = c(mn, mx),
+        ylim = c(0.2, length(p.vals) + 0.2),
+        type = 'n'
+    )
+    grid(NULL, NA, lty = 3, col = 'lightgrey')
+    # plot bars
+    barplot(
+        p.vals.log,
+        horiz = TRUE,
+        width = 0.6,
+        space = 2 / 3,
+        col = 'lightgrey',
+        axes = FALSE,
+        add = TRUE,
+        names.arg = FALSE
+    )
+    # gridlines and axes labels
+    ticks <- seq(from = mn, to = mx)
+    abline(v = -log10(alpha),
+        lty = 1,
+        col = 'red')
+    tick.labels <- formatC(ticks, digits = 2)
+    axis(
+        side = 1,
+        at = ticks,
+        labels = tick.labels,
+        cex.axis = 0.7
+    )
+    if (mult.corr != 'none'){
+        title(main = 'Significance', xlab = '-log10(adj. p value)')
+    } else {
+        title(main='Significance', xlab='-log10(p value)')
+    }
+
+    if (verbose > 2)
+        message("+ finished associations.pvals.plot")
+}
+
+# ##############################################################################
+# COLOR
+# check if a string is a valid r color reprensentation
+# from stackoverflow: Check if character string is a valid color representation
+# https://stackoverflow.com/questions/13289009
+#' @keywords internal
+is.color <- function(x) {
+    vapply(
+        x,
+        FUN = function(z) {
+            tryCatch(
+                is.matrix(col2rgb(z)),
+                error = function(e)
+                    FALSE
+            )
+        },
+        FUN.VALUE = logical(1)
+    )
+}
+
+### check the user-supplied color scheme for validity
+### color scheme may either be a single RColorBrewer palette or a vector of
+### the same length as the number of classes containing interpretable colors
+### as strings
+#' @keywords internal
+check.color.scheme <- function(color.scheme, label, verbose = 1) {
+    if (verbose > 2)
+        message("+ starting check.color.scheme")
+    n.classes = ifelse(label$type == 'BINARY', 2,
+        length(unique(label$label)))
+
+    if (length(color.scheme) == 1 &&
+            is.character(color.scheme)) {
+        if (n.classes == 2) {
+    # if color scheme and binary label, make colors as before
+            if (!color.scheme %in% row.names(brewer.pal.info)) {
+                warning(
+                    "Not a valid RColorBrewer palette name, defaulting to
+                    RdBu.\n See brewer.pal.info for more information about
+                    RColorBrewer palettes."
+                )
+                color.scheme <- 'RdYlBu'
+            }
+            colors <-
+                rev(colorRampPalette(brewer.pal(
+                    brewer.pal.info[color.scheme,
+                        'maxcolors'], color.scheme
+                ))(2))
+        } else {
+    # if color scheme and multiclass label, make colors either directly out
+    # of the palette (if n.classes smaller than maxcolors) or like before
+            if (!color.scheme %in% row.names(brewer.pal.info)) {
+                warning(
+                    "Not a valid RColorBrewer palette name, defaulting to
+                    Set3.\n See brewer.pal.info for more information about
+                    RColorBrewer palettes."
+                )
+                color.scheme <- 'Set3'
+            }
+    # if color scheme and multiclass label, check that the palette is not
+    # divergent or sequential, but qualitative. Only issue warning.
+            if (brewer.pal.info[color.scheme, 'category'] != 'qual')
+                warning("Using a divergent or sequential color palette for
+                        multiclass data.")
+            if (n.classes <= brewer.pal.info[color.scheme, 'maxcolors']) {
+                colors <- brewer.pal(n.classes, color.scheme)
+            } else {
+                warning("The data contains more classes than the color.palette
+                    provides.")
+                colors <-
+                    rev(colorRampPalette(brewer.pal(
+                        brewer.pal.info[color.scheme,
+                            'maxcolors'], color.scheme
+                    ))(n.classes))
+            }
+        }
+        } else if (length(color.scheme == n.classes) &&
+                all(is.color(color.scheme))) {
+    # if colors, check that all strings are real colors and check that
+    # the same length as n classes
+    # convert color names to hex representation
+            colors <-
+                vapply(
+                    color.scheme,
+                    FUN = function(x) {
+                        rgb(t(col2rgb(x)),
+                            maxColorValue = 255)
+                    },
+                    FUN.VALUE = character(1),
+                    USE.NAMES = FALSE
+                )
+        } else {
+            stop("Supplied colors do not match the number of classes or are no
+                valid colors")
+        }
+    # add transparency
+    colors <- vapply(
+        colors,
+        FUN = function(x) {
+            paste0(x, '85')
+        },
+        FUN.VALUE = character(1),
+        USE.NAMES = FALSE
+    )
+    if (verbose > 2)
+        message("+ finished check.color.scheme")
+    return(colors)
+        }
+
+#' @keywords internal
+create.tints <- function(colour, vec) {
+    new.cols <-
+        vapply(
+            vec,
+            FUN = function(x) {
+                rgb(matrix(col2rgb(colour) / 255 +
+                        (1 - col2rgb(colour) / 255) * x, ncol = 3))
+            },
+            FUN.VALUE = character(1)
+        )
+    return(new.cols)
+}
+
+#' @keywords internal
+change.transparency <- function(col.name) {
+    if (nchar(col.name) > 7) {
+        # adjust alpha channel by reducing transparency
+        a = substr(col.name, nchar(col.name) - 1, nchar(col.name))
+        a = 1 - (1 - as.numeric(paste('0x', a, sep = '')) / 255) / 2
+        new.col = gsub('..$', toupper(as.hexmode(round(a * 255))), col.name)
+    } else {
+        new.col <- col.name
+    }
+    return(new.col)
+}
+
+# ##############################################################################
+# UTILITY FUNCTIONS
+### Prepare margins for the first plots make left margin as big as the
+### longest label or maximally 20.1 lines
+#' @keywords internal
+associations.margins.plot <-
+    function(species_names, p.label, verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.margins.plot")
+        cex.org <- par()$cex
+        par(mar = c(5.1, 18, 4.1, 1.1), cex = 1)
+        temp = par()$mai
+        cex.labels <- min(.7, (((
+            par()$pin[2] / length(species_names)
+        ) * .6) /
+                max(
+                    strheight(species_names, units = 'inches')
+                )))
+        max_name <- max(strwidth(species_names, units = 'inches',
+            cex = cex.labels)) + temp[4]
+        temp[2] <- min(temp[2], max_name)
+        par(mai = temp, cex = cex.org)
+        if (verbose > 2)
+            message("+ finished associations.margins.plot")
+    }
+
+#' @keywords internal
+associations.labels.plot <-
+    function(labels, plot.type,    verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.labels.plot")
+        adj <- rep(0, length(labels))
+        if (plot.type == 'quantile.rect')
+            adj <- rep(-0.5, length(labels))
+        if (plot.type == 'box')
+            adj <- -0.5 + seq_along(labels)
+        cex.org <- par()$cex
+        par(cex = 1)
+        cex.labels <- min(.7, (((
+            par()$pin[2] / length(labels)
+        ) * .6) /
+                max(strheight(labels, units = 'inches'))))
+        for (i in seq_along(labels)) {
+            mtext(
+                labels[i],
+                2,
+                line = 0,
+                at = i + adj[i],
+                las = 1,
+                cex = cex.labels
+            )
+        }
+        par(cex = cex.org)
+        if (verbose > 2)
+            message("+ finished associations.labels.plot")
+    }
+
+#' @keywords internal
+associations.quantiles.plot <- function(quantiles, up = TRUE, col) {
+    n.spec <- nrow(quantiles)
+    adj.y0 <- ifelse(up, 0, 0.3)
+    adj.y1 <- ifelse(up, 0.3, 0)
+    #  box
+    rect(quantiles[, 2],
+        seq_len(n.spec) - adj.y0,
+        quantiles[, 4],
+        seq_len(n.spec) + adj.y1,
+        col = col)
+        # 90% interval
+    segments(quantiles[, 1], seq_len(n.spec), quantiles[, 5], seq_len(n.spec))
+    segments(
+        quantiles[, 1],
+        y0 = seq_len(n.spec) - adj.y0 / 3 * 2,
+        y1 = seq_len(n.spec) + adj.y1 / 3 * 2
+    )
+    segments(
+        quantiles[, 5],
+        y0 = seq_len(n.spec) - adj.y0 / 3 * 2,
+        y1 = seq_len(n.spec) + adj.y1 / 3 * 2
+    )
+    # median
+    segments(
+        quantiles[, 3],
+        y0 = seq_len(n.spec) - adj.y0,
+        y1 = seq_len(n.spec) + adj.y1,
+        lwd = 3
+    )
+}
+
+# ##############################################################################
+# BEAN PLOT
+#' @keywords internal
+associations.bean.plot <-
+    function(data.mat, label, col, take.log=TRUE, verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.bean.plot")
+
+        p.label <- max(label$info)
+        n.label <- min(label$info)
+
+        # create data.frame in format for beanplot
+        bean.data <- data.frame(data = c(data.mat))
+        bean.data$factor <- c(vapply(
+            label$label,
+            FUN = function(x) {
+                paste(rownames(data.mat),
+                names(label$info)[match(x, label$info)])
+            },
+            FUN.VALUE = character(nrow(data.mat)),
+            USE.NAMES = FALSE
+        ))
+        # ensure correct ordering by converting to a factor
+        bean.data$factor <- factor(bean.data$factor,
+            levels = paste(rep(rownames(data.mat), each = 2),
+                            names(label$info[order(label$info)])))
+
+        mn <- floor(c(min(bean.data$data)))
+        mx <- ceiling(c(max(bean.data$data)))
+
+        plot(
+            NULL,
+            xlab = '',
+            ylab = '',
+            xaxs = 'i',
+            yaxs = 'i',
+            axes = FALSE,
+            xlim = c(mn - 1.5, mx + 1),
+            ylim = c(0.45, nrow(data.mat) + 0.6),
+            type = 'n'
+        )
+        ticks <- mn:mx
+        for (v in ticks) {
+            abline(v = v,
+                lty = 3,
+                col = 'lightgrey')
+        }
+        if (take.log){
+            tick.labels <- formatC(10 ^ ticks, format = 'E', digits = 0)
+            axis(side = 1,at = ticks,labels = tick.labels,cex.axis = 0.7)
+        } else {
+            axis(1, ticks, cex.axis=0.7)
+        }
+
+        beanplot(
+            data ~ factor,
+            data = bean.data,
+            side = "both",
+            bw = "nrd0",
+            col = list(col[1], col[2]),
+            horizontal = TRUE,
+            names = c(""),
+            show.names = FALSE,
+            beanlines = "median",
+            maxstripline = 0.2,
+            what = c(FALSE, TRUE, TRUE, FALSE),
+            axes = FALSE,
+            add = TRUE
+        )
+
+
+        legend(
+            'topright',
+            legend = c(names(which(label$info == p.label)),
+                names(which(label$info == n.label))),
+            fill = rev(col),
+            bty = 'n'
+        )
+        associations.labels.plot(rownames(data.mat),
+            plot.type = 'bean',
+            verbose = verbose)
+        if (verbose > 2)
+            message("+ finished associations.bean.plot")
+    }
+
+# ##############################################################################
+# BOX PLOT
+#' @keywords internal
+associations.box.plot <-
+    function(data.mat, label, col, take.log=TRUE, verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.box.plot")
+        box.colors <- rep(c(col[1], col[2]), nrow(data.mat))
+
+        p.label <- max(label$info)
+        n.label <- min(label$info)
+
+        # create data.frame in format for beanplot
+        plot.data <- data.frame(data = c(data.mat))
+        plot.data$factor <- c(vapply(
+            label$label,
+            FUN = function(x) {
+                paste(rownames(data.mat),
+                names(label$info)[match(x, label$info)])
+            },
+            FUN.VALUE = character(nrow(data.mat)),
+            USE.NAMES = FALSE
+        ))
+
+        # ensure correct ordering by converting to a factor
+        plot.data$factor <- factor(plot.data$factor,
+            levels = paste(rep(rownames(data.mat), each = 2),
+                            names(label$info[order(label$info)])))
+
+        mn <- floor(c(min(data.mat)))
+        mx <- ceiling(c(max(data.mat)))
+
+        plot(
+            NULL,
+            xlab = '',
+            ylab = '',
+            xaxs = 'i',
+            yaxs = 'i',
+            axes = FALSE,
+            xlim = c(mn - 0.2, mx + 1),
+            ylim = c(+0.5, nrow(data.mat) * 2 + 0.5),
+            type = 'n'
+        )
+        ticks <- mn:mx
+        for (v in ticks) {
+            abline(v = v,
+                lty = 3,
+                col = 'lightgrey')
+        }
+        boxplot(
+            data ~ factor,
+            data = plot.data,
+            horizontal = TRUE,
+            names = c(""),
+            show.names = FALSE,
+            col = box.colors,
+            axes = FALSE,
+            outcol = c(col[1], col[2]),
+            add = TRUE
+        )
+
+
+        if (take.log){
+            tick.labels <- formatC(10 ^ ticks, format = 'E', digits = 0)
+            axis(side = 1,at = ticks,labels = tick.labels,cex.axis = 0.7)
+        } else {
+            axis(1, ticks, cex.axis=0.7)
+        }
+        legend(
+            'topright',
+            legend = c(names(which(label$info == p.label)),
+                names(which(label$info == n.label))),
+            fill = rev(col),
+            bty = 'n'
+        )
+        associations.labels.plot(row.names(data.mat),
+            plot.type = 'box',
+            verbose = verbose)
+        if (verbose > 2)
+            message("+ finished associations.box.plot")
+    }
+
+# ##############################################################################
+# QUANTILE BOX PLOT
+#' @keywords internal
+associations.quantile.box.plot <- function(data.mat, label, take.log=TRUE, col,
+    verbose = 1) {
+    if (verbose > 2)
+        message("+ starting associations.quantile.box.plot")
+    pos.col <- col[2]
+    neg.col <- col[1]
+
+    p.label <- max(label$info)
+    n.label <- min(label$info)
+    p.idx <- which(label$label == p.label)
+    n.idx <- which(label$label == n.label)
+    p.n <- length(which(label$label == p.label))
+    n.n <- length(which(label$label == n.label))
+
+    n.spec <- nrow(data.mat)
+    if (take.log){
+        p.min <- floor(min(data.mat, na.rm = TRUE))
+        p.max <- 0
+    } else {
+        p.min <- floor(min(data.mat, na.rm = TRUE))
+        p.max <- ceiling(max(data.mat, na.rm = TRUE))
+    }
+
+    plot(
+        rep(p.min, n.spec),
+        seq_len(n.spec),
+        xlab = '',
+        ylab = '',
+        yaxs = 'i',
+        axes = FALSE,
+        xlim = c(p.min, p.max),
+        ylim = c(0.5, n.spec + 0.5),
+        frame.plot = FALSE,
+        type = 'n'
+    )
+    for (v in seq(p.min, p.max, 1)) {
+        abline(v = v,
+            lty = 3,
+            col = 'lightgrey')
+    }
+
+    tck = p.min:p.max
+    if (take.log){
+        axis(1, tck, formatC(10 ^ tck, format='E', digits=0),
+            las=1, cex.axis=0.7)
+    } else {
+        axis(1, tck, las=1, cex.axis=0.7)
+    }
+
+    # get quantiles
+    quant.probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+    quantiles.pos = rowQuantiles(data.mat[, p.idx, drop=FALSE],
+        probs = quant.probs, na.rm = TRUE, drop=FALSE)
+    quantiles.neg = rowQuantiles(data.mat[, n.idx, drop=FALSE],
+        probs = quant.probs, na.rm = TRUE, drop=FALSE)
+
+        # inter-quartile range
+    associations.quantiles.plot(quantiles.pos, up = TRUE, pos.col)
+    associations.quantiles.plot(quantiles.neg, up = FALSE, neg.col)
+
+
+    # scatter plot on top
+    for (i in seq_len(n.spec)) {
+        pos.col.t <- change.transparency(pos.col)
+        neg.col.t <- change.transparency(neg.col)
+
+        points(
+            data.mat[i, p.idx],
+            rep(i + 0.15, p.n) + rnorm(p.n, sd = 0.03),
+            pch = 16,
+            cex = 0.6,
+            col = pos.col.t
+        )
+        points(
+            data.mat[i, n.idx],
+            rep(i - 0.15, n.n) + rnorm(n.n, sd = 0.03),
+            pch = 16,
+            cex = 0.6,
+            col = neg.col.t
+        )
+    }
+    legend(
+        'topright',
+        legend = c(names(which(label$info == p.label)),
+            names(which(label$info == n.label))),
+        fill = rev(col),
+        bty = 'n'
+    )
+    associations.labels.plot(row.names(data.mat),
+        plot.type = 'quantile.box',
+        verbose = verbose)
+    if (verbose > 2)
+        message("+ finished associations.quantile.box.plot")
+}
+
+# ##############################################################################
+# QUANTILE RECT PLOT
+#' @keywords internal
+associations.quantile.rect.plot <-
+    function(data.mat, label, col, take.log=TRUE, verbose = 1) {
+        if (verbose > 2)
+            message("+ starting associations.quantile.rect.plot")
+        n.spec <- nrow(data.mat)
+        quant.probs <- seq(from = 0.1, to = 0.9, by = 0.1)
+
+        p.label <- max(label$info)
+        n.label <- min(label$info)
+        p.idx <- which(label$label == p.label)
+        n.idx <- which(label$label == n.label)
+
+        quantiles.pos = rowQuantiles(data.mat[, p.idx, drop=FALSE],
+                                        probs = quant.probs,
+                                        na.rm = TRUE, drop=FALSE)
+        quantiles.neg = rowQuantiles(data.mat[, n.idx, drop=FALSE],
+                                        probs = quant.probs,
+                                        na.rm = TRUE, drop=FALSE)
+
+        if (take.log){
+            p.min <- floor(min(data.mat, na.rm = TRUE))
+            p.max <- 0
+        } else {
+            p.min <- floor(min(data.mat, na.rm = TRUE))
+            p.max <- ceiling(max(data.mat, na.rm = TRUE))
+        }
+
+        plot(
+            rep(p.min, n.spec),
+            seq_len(n.spec),
+            xlab = '',
+            ylab = '',
+            yaxs = 'i',
+            axes = FALSE,
+            xlim = c(p.min, p.max),
+            ylim = c(0, n.spec),
+            frame.plot = FALSE,
+            type = 'n'
+        )
+        for (v in seq(p.min, p.max, 1)) {
+            abline(v = v,
+                lty = 3,
+                col = 'lightgrey')
+        }
+
+        tck = p.min:p.max
+        if (take.log){
+            axis(1, tck, formatC(10^tck, format='E', digits=0),
+                las=1, cex.axis=0.7)
+        } else {
+            axis(1, tck, las=1, cex.axis=0.7)
+        }
+
+        # create different tints of the colours
+        colors.p <-
+            rev(create.tints(vec = seq(0, 1, length.out = 4),
+            colour = col[2]))
+        colors.n <-
+            rev(create.tints(vec = seq(0, 1, length.out = 4),
+            colour = col[1]))
+
+        associations.quantile.rect.sub.plot(quantiles.pos, up = TRUE, colors.p)
+        associations.quantile.rect.sub.plot(quantiles.neg, up = FALSE, colors.n)
+        associations.quantile.median.sub.plot(quantiles.pos, up = TRUE)
+        associations.quantile.median.sub.plot(quantiles.neg, up = FALSE)
+
+        legend(0.3*p.min, n.spec,
+            legend = c("Quantiles", "40%-60%", "30%-70%", "20%-80%", "10%-90%",
+                "median", "", "", "", "", ""),
+            bty = 'n', cex = 1, fill = c('white', rev(colors.p), 'white',
+                'white', rev(colors.n), 'white'),
+            lwd = 1.3, ncol = 2, border = c("white", "black", "black",
+                "black", "black", "white", "white", "black", "black", "black",
+                "black", "white"))
+        legend(0.3*p.min + abs(0.016*p.min), n.spec,
+            legend = c("", "", "", "", "", ""), bty = 'n',
+            lty = c(0, 0, 0, 0, 0, 0),
+            # cap legend size for diamond (should look
+            #   symmetric to other symbols)
+            pch = 18, cex = 1,
+            pt.cex = c(0, 0, 0, 0, 0, min(35 / n.spec, 2.25)))
+        legend('bottomright',
+            legend = c(names(which(label$info == max(label$info))),
+                names(which(label$info == min(label$info)))),
+            fill = rev(col), bty = 'n')
+        associations.labels.plot(rownames(data.mat),
+            plot.type = 'quantile.rect',
+            verbose = verbose)
+        if (verbose > 2)
+            message("+ finished associations.quantile.rect.plot")
+}
+
+#' @keywords internal
+associations.quantile.median.sub.plot <-
+    function(quantiles, up = TRUE) {
+        n.spec <- nrow(quantiles)
+        adj.y <- ifelse(up, 0.15,-0.15)
+        points(
+            quantiles[, ceiling(ncol(quantiles) / 2)],
+            y = (0.5:n.spec) + adj.y,
+            pch = 18,
+            cex = min(35 / n.spec, 4)
+        )
+    }
+
+#' @keywords internal
+associations.quantile.rect.sub.plot <-
+    function(quantiles, up = TRUE, colors) {
+        n.spec <- nrow(quantiles)
+        adj.y0 <- ifelse(up, 0, 0.3)
+        adj.y1 <- ifelse(up, 0.3, 0)
+        for (i in seq_len(ncol(quantiles) / 2)) {
+            rect(
+                quantiles[, i],
+                (0.5:n.spec) - adj.y0,
+                quantiles[, ncol(quantiles) + 1 - i],
+                (0.5:n.spec) + adj.y1,
+                col = colors[i],
+                border = c("black"),
+                lwd = 0.9
+            )
+        }
+}
+
+# ##############################################################################
+### maker analysis for two-class data
+#     calculate p-value with Wilcoxon
+#     fold change as normalized absolute difference between quantiles
+#     prevalence shift
+#     single marker AUC
+#' @keywords internal
+analyse.binary.marker <- function(feat, label, detect.lim, colors,
+    pr.cutoff, mult.corr, alpha, max.show, sort.by, probs.fc = seq(.1, .9, .05),
+    take.log=TRUE, verbose = 1) {
+    if (verbose > 1)
+        message("+ starting analyse.binary.marker")
+    s.time <- proc.time()[3]
+    ############################################################################
+    ### Calculate wilcoxon, pseudo-FC, prevalence shift, and AUC for all feats
+    ############################################################################
+    if (verbose > 1)
+        message('+++ calculating effect size for each feature.')
+    if (is.null(detect.lim) & take.log==TRUE) {
+        warning(
+            "Pseudo-count before log-transformation not supplied! Estimating it
+            as 5% percentile.\n"
+        )
+        detect.lim <- quantile(feat[feat != 0], 0.05)
+    }
+    if (any(feat[feat != 0] < detect.lim) & take.log==TRUE){
+        cnt <- length(which(feat[feat!=0] < detect.lim))
+        percentage <- (cnt/length(feat[feat!=0]))*100
+        if (percentage >= 5){
+            warning(paste0('### Some values (',cnt, ' or ',
+            formatC(percentage, digits=2),
+            '% of non-zero entries',
+            ') are smaller than the given detection limit!'))
+        }
+    }
+
+    positive.label <- max(label$info)
+    negative.label <- min(label$info)
+
+    if (verbose)
+        pb <- progress_bar$new(total = nrow(feat))
+
+    effect.size <- data.frame(t(apply(feat, 1, FUN = function(x) {
+        # pseudo-fold change as differential quantile area
+        if (take.log == TRUE){
+            q.p <- quantile(log10(x[which(label$label == positive.label)] +
+                detect.lim), probs = probs.fc)
+            q.n <- quantile(log10(x[which(label$label == negative.label)] +
+                detect.lim), probs = probs.fc)
+        } else {
+            q.p <- quantile(x[which(label$label == positive.label)],
+                probs = probs.fc)
+            q.n <- quantile(x[which(label$label == negative.label)],
+                probs = probs.fc)
+        }
+        fc <- sum(q.p - q.n) / length(q.p)
+
+        # wilcoxon
+        p.val <- wilcox.test(x[which(label$label == negative.label)],
+            x[which(label$label == positive.label)], exact = FALSE)$p.value
+
+        # AU-ROC
+        temp <- roc(predictor = x, response = label$label, ci = TRUE,
+                    direction = '<', levels = label$info)
+        aucs <- c(temp$ci)
+
+        # prevalence shift
+        temp.n <- sum(x[which(label$label == negative.label)] >= pr.cutoff) /
+            length(which(label$label == negative.label))
+        temp.p <- sum(x[which(label$label == positive.label)] >= pr.cutoff) /
+            length(which(label$label == positive.label))
+        pr.shift <- c(temp.p - temp.n, temp.n, temp.p)
+        if (verbose)
+            pb$tick()
+        return(c('fc' = fc, 'p.val' = p.val, 'auc' = aucs[2],
+            'auc.ci.l' = aucs[1], 'auc.ci.h' = aucs[3],
+            'pr.shift' = pr.shift[1], 'pr.n' = pr.shift[2],
+            'pr.p' = pr.shift[3]))
+        }
+    )))
+
+    effect.size$bcol <-
+        ifelse(effect.size[, 'auc'] >= 0.5, colors[2], colors[1])
+
+    ### Apply multi-hypothesis testing correction
+    if (!tolower(mult.corr) %in% c("holm", "hochberg", "hommel", "bonferroni",
+        "BH", "BY", "fdr", "none")) {
+        stop(
+            "! Unknown multiple testing correction method:', mult.corr,'
+            Stopping!\n Must of one of c('none','bonferroni', 'holm','fdr',
+            'bhy')"
+        )
+    }
+    if (mult.corr == 'none') {
+        warning('WARNING: No multiple hypothesis testing performed.')
+        effect.size$p.adj <- effect.size$p.val
+    } else {
+        effect.size$p.adj <-
+            p.adjust(effect.size$p.val, method = tolower(mult.corr))
+    }
+
+    if (verbose > 1)
+        message(
+            paste(
+                '+++ found',
+                sum(effect.size$p.adj < alpha,
+                    na.rm = TRUE),
+                'significant associations at a significance level <',
+                alpha
+            )
+        )
+
+    e.time <- proc.time()[3]
+    if (verbose > 1)
+        message(paste(
+            "+ finished analyse.binary.marker in",
+            formatC(e.time - s.time, digits = 3),
+            "s"
+        ))
+    return(
+        list(
+            "effect.size" = effect.size,
+            "detect.lim" = detect.lim
+        )
+    )
+}
+
+#' @keywords internal
+get.plotting.idx <- function(df.results, alpha, sort.by, max.show, verbose){
+
+    idx <- which(df.results$p.adj < alpha)
+
+    if (length(idx) == 0) {
+        warning(paste0('No significant associations found.',
+        ' No plot will be produced.\n'))
+        return(NULL)
+    } else if (length(idx) < 5) {
+        warning(paste0('Less than 5 associations found. Consider',
+        ' changing your alpha value.'))
+    }
+
+    idx <- idx[order(df.results$p.adj[idx], decreasing = TRUE)]
+
+    # # truncated the list for the following plots
+    truncated = FALSE
+    if (length(idx) >= max.show) {
+        truncated = TRUE
+        idx <- idx[(length(idx) - max.show + 1):length(idx)]
+        if (verbose > 1)
+            message(
+                paste(
+                    '+++ truncating the list of significant
+                    associations to the top',
+                    max.show
+                )
+            )
+    }
+
+    ### Sort features
+    if (verbose > 2)
+        message('+++ sorting features')
+    if (!sort.by %in% c('fc', 'p.val', 'pr.shift', 'auc')) {
+            message(paste0(
+                '+++ Unknown sorting option: ',
+                sort.by,
+                '. Instead order by fold change.'
+            ))
+        sort.by <- 'fc'
+    }
+    if (sort.by == 'fc') {
+        idx <- idx[order(df.results$fc[idx], decreasing = FALSE)]
+    } else if (sort.by == 'p.val') {
+        idx <- idx[order(df.results$p.adj[idx], decreasing = TRUE)]
+    } else if (sort.by == 'pr.shift') {
+        idx <- idx[order(df.results$pr.shift[idx], decreasing = FALSE)]
+    } else if (sort.by == 'auc'){
+        idx <- idx[order(df.results$auc[idx], decreasing = FALSE)]
+    }
+    return(list('idx'=idx,
+                'truncated'=truncated))
+}
+
+```
+
+```{r}
+
+check.associations(siamcat)
+
+
+```
+```{r}
+
+
+```
+
+
+
+##### ATTEMPT WITH MND ######
+
+```{r}
+
+library(ExperimentHub)
+library(curatedMetagenomicData)
+suppressPackageStartupMessages(library(ExperimentHub))
+library(phyloseq)
+library(microbiome)
+
+eh = ExperimentHub()
+myquery = query(eh, "curatedMetagenomicData")
+
+# Get the stool samples
+# esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
+meta.healthy <- combined_metadata %>% filter(disease=='healthy')
+
+# merge
+# eset <- mergeData(esl)
+
+
+# the relab=FALSE is essential as it Absolute Raw Count Data
+#pseq = ExpressionSet2phyloseq(meta.healthy, relab=FALSE ,simplify = TRUE, phylogenetictree = TRUE)
+#orig_pseq <- pseq
+
+c.mnd.country <- get_variable(meta.healthy, "country" )
+table(c.mnd.country)
+
+
+# Create mnd variable
+#pseq <- orig_pseq
+# grabs the nationality from phyloseq
+#c.mnd.country <- get_variable(pseq, "country" )
+#table(c.mnd.country)
+
+# this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
+# Not used BGD Bangladesh , CAN Canada, CHN, China. DNK denmark, FJI Figi, HUN Hungry, ISL isle of man , MDG, MNG mongolia, PER Iran, RUS RUSSIA, 
+
+#Adjsuted to match exactly the ATLAS data set
+
+#central Europe = Belgium, Demark, Netherlands, Germany
+#southern Europe = France, Italy, Serbia, Spain
+#UKIE
+#Scandinavia = Norway, Sweden Finland
+#Eastern Europe = Poland 
+
+# NOR, GBR not in healthy 
+# NOR in Scandanavia
+
+# c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("NOR","SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA", UKIE = "GBR" )
+
+# c.mnd.atlas <- droplevels(c.mnd.atlas,c("BGD", "ISL","HUN","EST", "SVK", "LUX", "CAN", "AUT", "FJI","CHN","MDG","MNG","PER","RUS","TZA", "KAZ")) 
+
+c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA")
+
+#drops unused levels
+c.mnd.atlas <- droplevels(c.mnd.atlas, c("BGD", "CAN", "CHN", "FJI", "KAZ", "MDG", "PER", "RUS", "TZA")) 
+
+# c.mnd.atlas <- subset_samples(c.mnd.atlas, !is.na(country) )
+
+sample_data(meta.healthy)$country = c.mnd.atlas
+
+
+#mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DNK","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
+
+#mnd.country <- fct_collapse(mnd.country, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+
+# reorder
+# NOTE THERE IS NO EASTERN EUROPE
+c.mnd.nationality <- fct_collapse(c.mnd.atlas, LOW = c("Scandinavia") , MEDIUM = c("SouthEurope","CentralEurope" ), HIGH = c("US") )
+
+c.mnd.nationality <- factor(c.mnd.nationality, levels = (c("LOW", "MEDIUM", "HIGH")))
+levels(c.mnd.nationality)
+
+# creates a new variable in the phyloseq called mnd
+#sample_data(meta.healthy)$mnd = c.mnd.nationality
+meta.healthy$mnd = c.mnd.nationality
+
+# only works with phyloseq
+# checks that it has worked.
+get_variable(meta.healthy, "mnd")
+table(get_variable(meta.healthy, "mnd"))
+
+
+```
+
+
+
+
+However, we have to clean the data a bit, since the data set contains samples from two different countries and two different disease subtypes.
+```{r}
+
+table(meta.healthy$country)
+
+table(meta.healthy$mnd)
+
+```
+
+
+```{r}
+
+# The siamcat object extends on the phyloseq object. Therefore, creating a siamcat object from a phyloseq object is really straightforward. This can be done with the siamcat constructor function. First, however, we need to create a label object:
+label <- create.label(meta=sample_data(meta.healthy),
+    label = "mnd",
+    case = c("MEDIUM", "HIGH"), control = "LOW")
+
+# Assigned LOW as control group
+
+
+
+```
+
+we have more samples than individual subjects:
+```{r}
+
+print(length(unique(meta.healthy$subjectID))) 
+print(nrow(meta.healthy))
+
+
+```
+
+Some subjects (but not all) had been sampled multiple times. Therefore, we want to remove repeated samplings for the same subject, since the samples would otherwise not be indepdenent from another.
+
+The visit number is encoded in the sampleID. Therefore, we can use this information to extract when the samples have been taken and use only the first visit for each subject.
+
+```{r}
+
+meta.healthy.s<- meta.healthy %>%
+  select(sampleID, subjectID, study_condition, disease_subtype, 
+disease, age, country, number_reads, median_read_length, BMI, mnd) %>%
+  mutate(visit=str_extract(sampleID, '_[0-9]+$')) %>%
+  mutate(visit=str_remove(visit, '_')) %>% 
+  mutate(visit=as.numeric(visit)) %>%
+  mutate(visit=case_when(is.na(visit)~0, TRUE~visit)) %>%
+  group_by(subjectID) %>% 
+  filter(visit==min(visit)) %>%
+  ungroup() %>%
+  mutate(Sample_ID=sampleID) %>%
+  mutate(Group=case_when(mnd=='LOW'~'CTR'))
+  
+
+# mutate(Group=case_when(disease=='healthy'~'CTR')
+```
+
+```{r}
+
+print(length(unique(meta.healthy.s$subjectID))) 
+print(nrow(meta.healthy.s))
+
+```
+
+
+#### Taxonomin Profiles
+
+Load the taxonomic profiles generated with MetaPhlAn2 via the curatedMetagenomicsData R package.
+
+```{r}
+
+#x <- '*metaphlan_bugs_list.stool*'
+#feat <- curatedMetagenomicData(x=x, dryrun=FALSE)
+
+feat <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
+
+feat <- feat[[x]]@assayData$exprs
+
+
+
+
+
+```
+
+
+The MetaPhlAn2 profiles contain information on different taxonomic levels. Therefore, we want to restrict them to species-level profiles. In a second step, we convert them into relative abundances (summing up to 1) instead of using the percentages (summing up to 100) that MetaPhlAn2 outputs.
+```{r}
+
+feat <- feat[grep(x=rownames(feat), pattern='s__'),]
+feat <- feat[grep(x=rownames(feat),pattern='t__', invert = TRUE),]
+feat <- t(t(feat)/100)
+ 
+
+```
+
+The feature names are very long and may be a bit un-wieldy for plotting later on, so we shorten them to only the species name:
+```{r}
+
+rownames(feat) <- str_extract(rownames(feat), 's__.*$')
+                              
+```
+
+
+#### Create the SIAMCAT Object
+
+Now, we have everything ready to create a SIAMCAT object which stores the feature matrix, the meta-variables, and the label. Here, the label is created using the information in the metadata.
+```{r}
+
+sc.obj <- siamcat(feat=feat, meta=meta.healthy, label='Group', case='mnd')
+
+sc.obj <- siamcat(meta.healthy, label='Group', case='MEDIUM,HIGH')
+
+```
+
+
+
+## Feature Filtering
+Now, we can filter feature with low overall abundance and prevalence.
+```{r}
+
+sc.obj <- filter.features(sc.obj, cutoff=1e-04, filter.method = 'abundance')
+
+sc.obj <- filter.features(sc.obj, cutoff=0.05,
+                          filter.method='prevalence',
+                          feature.type = 'filtered')
+
+```
+
+
+### Association Plot
+
+The check.assocation function calculates the significance of enrichment and metrics of association (such as generalized fold change and single-feautre AUROC).
+```{r}
+
+sc.obj <- check.associations(sc.obj, detect.lim = 1e-06, 
+                             alpha=0.1, 
+                             max.show = 20,
+                             plot.type = 'quantile.rect',
+                             fn.plot = './association_plot.pdf')
+
+
+```
+
+
+
+

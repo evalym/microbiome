@@ -1,0 +1,391 @@
+---
+title: "siamcat_MND_MRD"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##### ATTEMPT WITH MND ######
+
+```{r}
+
+library(ExperimentHub)
+library(curatedMetagenomicData)
+suppressPackageStartupMessages(library(ExperimentHub))
+library(phyloseq)
+library(microbiome)
+library(tidyverse) 
+library(SIAMCAT) 
+library(ggpubr)
+
+
+eh = ExperimentHub()
+myquery = query(eh, "curatedMetagenomicData")
+
+# Get the stool samples
+esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
+
+# merge
+eset <- mergeData(esl)
+
+# the relab=FALSE is essential as it Absolute Raw Count Data
+pseq = ExpressionSet2phyloseq(eset,relab=FALSE ,simplify = TRUE, phylogenetictree = TRUE)
+orig_pseq <- pseq
+
+
+# Create mnd variable
+#pseq <- orig_pseq
+# grabs the nationality from phyloseq
+c.mnd.country <- get_variable(pseq, "country" )
+table(c.mnd.country)
+
+# this collapses the two varialbes into a new variable AB in this case. The command for multiple changes is fct_collapse(x, AB = c("A","B"), DE = c("D","E"))
+# Not used BGD Bangladesh , CAN Canada, CHN, China. DNK denmark, FJI Figi, HUN Hungry, ISL isle of man , MDG, MNG mongolia, PER Iran, RUS RUSSIA, 
+
+#Adjsuted to match exactly the ATLAS data set
+
+#central Europe = Belgium, Demark, Netherlands, Germany
+#southern Europe = France, Italy, Serbia, Spain
+#UKIE
+#Scandinavia = Norway, Sweden Finland
+#Eastern Europe = Poland 
+
+
+c.mnd.atlas <- fct_collapse(c.mnd.country, Scandinavia = c("NOR","SWE","FIN") ,CentralEurope = c("DNK","DEU","NLD"), SouthEurope = c("ITA","ESP","FRA"), US = "USA", UKIE = "GBR" )
+
+#drops unused levels
+c.mnd.atlas <- droplevels(c.mnd.atlas,c("ISL","HUN","EST", "SVK", "LUX", "CAN", "AUT", "BGD","FJI","CHN","MDG","MNG","PER","RUS","TZA", "KAZ")) 
+
+#c.mnd.atlas <- subset_samples(c.mnd.atlas, !is.na("country") )
+#Error in access(object, "sam_data", errorIfNULL) : sam_data slot is empty.
+
+sample_data(pseq)$nationality = c.mnd.atlas
+
+
+#mnd.country <- fct_collapse(mnd.country, LOW = c("NOR","SWE","FIN","DNK","LUX") , MEDIUM = c("ITA","AUT","DEU","ESP","FRA","NLD"), HIGH = c("GBR","USA","CAN") )
+
+#mnd.country <- fct_collapse(mnd.country, LOW = c("Scandinavia","EasternEurope") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE"), HIGH = c("US") )
+
+# reorder
+# NOTE THERE IS NO EASTERN EUROPE
+c.mnd.nationality <- fct_collapse(c.mnd.atlas, LOW = c("Scandinavia") , MEDIUM = c("SouthEurope","CentralEurope", "UKIE" ), HIGH = c("US") )
+
+c.mnd.nationality <- factor(c.mnd.nationality, levels = (c("LOW", "MEDIUM", "HIGH")))
+levels(c.mnd.nationality)
+
+# creates a new variable in the phyloseq called mnd
+sample_data(pseq)$mnd = c.mnd.nationality
+
+# checks that it has worked.
+get_variable(pseq, "mnd")
+table(get_variable(pseq, "mnd"))
+
+
+
+
+
+```
+
+
+The taxonomic abundance profiles and the sample meatadata for the example dataset are available through the curatedMetagenomicsData R package.
+
+clean the data a bit
+
+```{r}
+
+table(pseq@sam_data[["country"]])
+
+table(pseq@sam_data[["mnd"]])
+
+```
+
+
+
+
+
+
+The input data should be organized in the same way for every version of SIAMCAT. All files are in tab-separated column format
+
+
+Label data: First row is expected to be #BINARY:1=[label for cases];-1=[label for controls]
+Second row should contain the sample identifiers as tab-separated list (consistent with feature and metadata).
+Third row is expected to contain the actual class labels (tab-separated), e.g. 1 for each case and -1 for each
+control.
+Note: Labels can take other numeric values (but not characters or strings); importantly, the label for cases has to
+be greater than the one for controls.
+
+
+Feature matrix: features (in rows) x samples (in columns)
+First row should contain sample labels (consistent with label data), while the first column should contain feature
+labels (e.g. taxonomic identifiers). The remaining entries are expected to be real values >= 0 that quantify the
+abundance of each feature in each sample.
+
+
+Metadata (optional): samples (in rows) x metadata (in columns)
+Metadata needs to be converted to numerical values by the user (This is necessary for heatmap displays)!
+
+
+# Create Label
+```{r}
+
+# The siamcat object extends on the phyloseq object. Therefore, creating a siamcat object from a phyloseq object is really straightforward. This can be done with the siamcat constructor function. First, however, we need to create a label object:
+label <- create.label(meta=sample_data(pseq),
+    label = "mnd",
+    case = c("MEDIUM", "HIGH"), control = "LOW")
+
+# Assigned LOW as control group
+
+siamcat <- siamcat(phyloseq=pseq, label=label)
+
+```
+
+
+
+```{r}
+
+#Accessing and assigning slots
+#Each slot in siamcat can be accessed by typing
+  #slot_name(siamcat)
+
+#e.g. for the eval_data slot you can types
+  #eval_data(siamcat)
+#There is one notable exception: the phyloseq slot has to be accessed with physeq(siamcat) due to technical reasons.
+physeq(siamcat) 
+
+#Slots will be filled during the SIAMCAT workflow by the package’s functions. However, if for any reason a slot needs to be assigned outside of the workflow, the following formula can be used:
+    #slot_name(siamcat) <- object_to_assign
+
+#e.g. to assign a new_label object to the label slot:
+    #label(siamcat) <- new_label
+#Please note that this may lead to unforeseen consequences…
+
+```
+
+```{r}
+
+#There are two slots that have slots inside of them. First, the model_list slot has a models slot that contains the actual list of mlr models -can be accessed via models(siamcat)- and model.type which is a character with the name of the method used to train the model: model_type(siamcat).
+
+#The phyloseq slot has a complex structure. However, unless the phyloseq object is created outside of the SIAMCAT workflow, only two slots of phyloseq slot will be occupied: the otu_table slot containing the features table and the sam_data slot containing metadata information. Both can be accessed by typing either features(siamcat) or meta(siamcat).
+
+#Additional slots inside the phyloseq slots do not have dedicated accessors, but can easily be reached once the phyloseq object is exported from the siamcat object:
+
+phyloseq <- physeq(siamcat)
+tax_tab <- tax_table(phyloseq)
+head(tax_tab)
+
+```
+
+
+
+
+## Feature Filtering
+Now, we can filter feature with low overall abundance and prevalence.
+```{r}
+
+siamcat <- filter.features(siamcat, cutoff=1e-04, filter.method = 'abundance')
+
+siamcat <- filter.features(siamcat, cutoff=0.05,
+                          filter.method='prevalence',
+                          feature.type = 'filtered')
+
+```
+
+A few information about the siamcat object can be accessed with the show function from phyloseq (SIAMCAT builds on the phyloseq data structure):
+
+```{r}
+
+show(siamcat)
+
+```
+
+Since we have quite a lot of microbial species in the dataset at the moment, we can perform unsupervised feature selection using the function filter.features.
+```{r}
+
+siamcat <- filter.features(siamcat,
+    filter.method = 'abundance',
+    cutoff = 0.001)
+
+```
+
+
+#### Association Testing ####
+
+Associations between microbial species and the label can be tested with the check.associations function. The function computes for each species the significance using a non-parametric Wilcoxon test and different effect sizes for the association (e.g. AUC or fold change).
+
+The function produces a pdf file as output, since the plot is optimized for a landscape DIN-A4 layout, but can also used to plot on an active graphic device, e.g. in RStudio. The resulting plot then looks like that:
+```{r}
+
+siamcat <- check.associations(
+    siamcat,
+    sort.by = 'fc',
+    fn.plot = 'assocMND.pdf',
+    alpha = 0.05,
+    mult.corr = "fdr",
+    detect.lim = 10 ^-6,
+    plot.type = "quantile.box",
+    panels = c("fc", "prevalence", "auroc"))
+
+```
+
+#### Confounder Analysis
+
+We can also check the supplied meta-variables for potential confounding.
+
+```{r}
+
+check.confounders(siamcat, fn.plot = './confoundersMND.pdf')
+
+```
+
+
+
+
+we have more samples than individual subjects:
+```{r}
+
+print(length(unique(pseq$subjectID))) 
+print(nrow(pseq))
+
+
+print(length(unique(pseq@sam_data[["subjectID"]])))
+#6784 total rows
+
+
+```
+
+Some subjects (but not all) had been sampled multiple times. Therefore, we want to remove repeated samplings for the same subject, since the samples would otherwise not be indepdenent from another.
+
+The visit number is encoded in the sampleID. Therefore, we can use this information to extract when the samples have been taken and use only the first visit for each subject.
+
+```{r}
+
+pseq.s<- pseq %>%
+  select(sampleID, subjectID, study_condition, disease_subtype, 
+disease, age, country, number_reads, median_read_length, BMI, mnd) %>%
+  mutate(visit=str_extract(sampleID, '_[0-9]+$')) %>%
+  mutate(visit=str_remove(visit, '_')) %>% 
+  mutate(visit=as.numeric(visit)) %>%
+  mutate(visit=case_when(is.na(visit)~0, TRUE~visit)) %>%
+  group_by(subjectID) %>% 
+  filter(visit==min(visit)) %>%
+  ungroup() %>%
+  mutate(Sample_ID=sampleID) %>%
+  mutate(Group=case_when(mnd=='LOW'~'CTR'))
+  
+
+# mutate(Group=case_when(disease=='healthy'~'CTR')
+```
+
+
+First, SIAMCAT needs a feature matrix (can be either a matrix, a data.frame, or a phyloseq-otu_table), which contains values of different features (in rows) for different samples (in columns). For example, the feature matrix included here contains relative abundances for bacterial species calculated with the mOTU profiler for 141 samples:
+
+```{r}
+
+feat.crc.zeller[1:3, 1:3]
+
+# Dimensions of object
+dim(feat.crc.zeller)
+
+```
+
+#### Taxonomin Profiles
+
+Load the taxonomic profiles generated with MetaPhlAn2 via the curatedMetagenomicsData R package.
+
+```{r}
+
+# Get the stool samples
+esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
+
+# merge
+eset <- mergeData(esl)
+
+# the relab=FALSE is essential as it Absolute Raw Count Data
+pseq = ExpressionSet2phyloseq(eset,relab=FALSE ,simplify = TRUE, phylogenetictree = TRUE)
+orig_pseq <- pseq
+
+y <- "*metaphlan_bugs_list.stool*"
+
+feat <- curatedMetagenomicData(x=orig_pseq, dryrun=FALSE)
+
+feat <- feat[[x]]@assayData$exprs
+
+
+feat <- feat[[y]]@assayData$exprs
+
+
+
+x <- 'NielsenHB_2014.metaphlan_bugs_list.stool'
+feat <- curatedMetagenomicData(x=x, dryrun=FALSE)
+
+feat <- feat[[x]]@assayData$exprs
+
+
+
+
+
+```
+
+
+The MetaPhlAn2 profiles contain information on different taxonomic levels. Therefore, we want to restrict them to species-level profiles. In a second step, we convert them into relative abundances (summing up to 1) instead of using the percentages (summing up to 100) that MetaPhlAn2 outputs.
+```{r}
+
+feat <- feat[grep(x=rownames(feat), pattern='s__'),]
+feat <- feat[grep(x=rownames(feat),pattern='t__', invert = TRUE),]
+feat <- t(t(feat)/100)
+ 
+
+```
+
+The feature names are very long and may be a bit un-wieldy for plotting later on, so we shorten them to only the species name:
+```{r}
+
+rownames(feat) <- str_extract(rownames(feat), 's__.*$')
+                              
+```
+
+
+#### Create the SIAMCAT Object
+
+Now, we have everything ready to create a SIAMCAT object which stores the feature matrix, the meta-variables, and the label. Here, the label is created using the information in the metadata.
+```{r}
+
+sc.obj <- siamcat(feat=feat, meta=meta.healthy, label='Group', case='mnd')
+
+sc.obj <- siamcat(meta.healthy, label='Group', case='MEDIUM,HIGH')
+
+```
+
+
+
+## Feature Filtering
+Now, we can filter feature with low overall abundance and prevalence.
+```{r}
+
+sc.obj <- filter.features(sc.obj, cutoff=1e-04, filter.method = 'abundance')
+
+sc.obj <- filter.features(sc.obj, cutoff=0.05,
+                          filter.method='prevalence',
+                          feature.type = 'filtered')
+
+```
+
+
+### Association Plot
+
+The check.assocation function calculates the significance of enrichment and metrics of association (such as generalized fold change and single-feautre AUROC).
+```{r}
+
+sc.obj <- check.associations(sc.obj, detect.lim = 1e-06, 
+                             alpha=0.1, 
+                             max.show = 20,
+                             plot.type = 'quantile.rect',
+                             fn.plot = './association_plot.pdf')
+
+
+```
+
+
