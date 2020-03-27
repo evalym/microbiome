@@ -12,14 +12,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 
+#install.packages("randomForest")
+
+library(SIAMCAT)
+library(RColorBrewer)
+library(pROC)
+library(tidyverse)
+library(curatedMetagenomicData)
+library(ggpubr)
+
 library(ExperimentHub)
 library(curatedMetagenomicData)
 suppressPackageStartupMessages(library(ExperimentHub))
 library(phyloseq)
 library(microbiome)
-library(tidyverse) 
-library(SIAMCAT) 
-library(ggpubr)
+
+
 
 
 eh = ExperimentHub()
@@ -90,6 +98,65 @@ table(get_variable(pseq, "mnd"))
 ```
 
 
+```{r}
+
+#pseq.subset <- subset_samples(pseq, !is.na(mnd) & is.na(disease) | disease == "healthy" & age_category != "child" & age_category != "newborn" & age_category != "schoolage" )
+
+```
+
+
+
+# pseq Preprocessing
+Transformed to relative abundance, creating the new pseq.r object, which is then filtered such that only OTUs with a mean greater than 10^-5 are kept.
+
+```{r}
+any(taxa_sums(pseq) == 0)
+# FALSE if OTUs are found in all samples and we don't need to prune the taxa. If the answer is TRUE, some OTUs are not present in any samples. This is usually the case when data is subset to remove some samples. OTUs unique to those sample are not removed along with the samples. Therefore, it is important to check this everytime the phyloseq object is filtered for samples using `subset_samples` function.
+head(meta(pseq))
+
+pseq.1 <- prune_taxa(taxa_sums(pseq) > 0, pseq)
+
+# check again if any OTUs are not present in any samples
+any(taxa_sums(pseq.1) == 0)
+
+
+ntaxa(pseq)
+ntaxa(pseq.1)
+
+ntaxa(pseq) - ntaxa(pseq.1)
+ 
+
+head(meta(pseq.1))
+
+```
+
+```{r}
+
+summarize_phyloseq(pseq.1)
+
+```
+
+
+```{r}
+pseq.1@otu_table [1:3, 1:3]
+
+```
+
+
+```{r}
+
+#pseq.r  = transform_sample_counts(pseq, function(x) x / sum(x) )
+#pseq.pr = filter_taxa(pseq.r, function(x) var(x) > 1e-5, TRUE)
+
+```
+
+
+```{r}
+pseq.c <- microbiome::transform(pseq.1, "compositional")
+```
+
+
+
 The taxonomic abundance profiles and the sample meatadata for the example dataset are available through the curatedMetagenomicsData R package.
 
 clean the data a bit
@@ -99,6 +166,52 @@ clean the data a bit
 table(pseq@sam_data[["country"]])
 
 table(pseq@sam_data[["mnd"]])
+
+```
+
+
+
+
+
+### Creating Siamcat Object ###
+We have a phyloseq object, therefore:
+Metadata = sam_data
+Features = otu_table
+
+
+The siamcat object is constructed using the siamcat() function. There are two ways to initialize it:
+
+Features: You can provide a feature matrix, data.frame, or otu_table to the function (together with label and metadata information):
+
+siamcat <- siamcat(feat=feat, label=label, meta=meta)
+phyloseq: The alternative is to create a siamcat object directly out of a phyloseq object:
+
+siamcat <- siamcat(phyloseq=phyloseq, label=label)
+
+
+```{r}
+
+feat=otu_table(pseq.c)
+meta=sample_data(pseq.c)
+
+#Two ways to create siamcat object:
+
+label <- create.label(meta=sample_data(pseq.c),
+    label = "mnd",
+    case = "HIGH", control = "LOW")
+
+#FIRST WAY:
+# siamcat <- siamcat(feat=feat, label=label, meta=meta)
+# siamcat <- siamcat(feat=otu_table, label=label, meta=sample_data(pseq))
+# Error in validObject(.Object) : invalid class “phyloseq” object: 
+ # An otu_table is required for most analysis / graphics in the phyloseq-package
+
+
+#SECOND WAY
+# siamcat <- siamcat(phyloseq=phyloseq, label=label)
+siamcat <- siamcat(phyloseq=pseq.c, label=label)
+
+
 
 ```
 
@@ -128,19 +241,7 @@ Metadata (optional): samples (in rows) x metadata (in columns)
 Metadata needs to be converted to numerical values by the user (This is necessary for heatmap displays)!
 
 
-# Create Label
-```{r}
 
-# The siamcat object extends on the phyloseq object. Therefore, creating a siamcat object from a phyloseq object is really straightforward. This can be done with the siamcat constructor function. First, however, we need to create a label object:
-label <- create.label(meta=sample_data(pseq),
-    label = "mnd",
-    case = c("MEDIUM", "HIGH"), control = "LOW")
-
-# Assigned LOW as control group
-
-siamcat <- siamcat(phyloseq=pseq, label=label)
-
-```
 
 
 
@@ -154,6 +255,7 @@ siamcat <- siamcat(phyloseq=pseq, label=label)
   #eval_data(siamcat)
 #There is one notable exception: the phyloseq slot has to be accessed with physeq(siamcat) due to technical reasons.
 physeq(siamcat) 
+
 
 #Slots will be filled during the SIAMCAT workflow by the package’s functions. However, if for any reason a slot needs to be assigned outside of the workflow, the following formula can be used:
     #slot_name(siamcat) <- object_to_assign
@@ -173,8 +275,21 @@ physeq(siamcat)
 #Additional slots inside the phyloseq slots do not have dedicated accessors, but can easily be reached once the phyloseq object is exported from the siamcat object:
 
 phyloseq <- physeq(siamcat)
-tax_tab <- tax_table(phyloseq)
-head(tax_tab)
+otu_tab <- otu_table(phyloseq)
+head(otu_tab)
+
+```
+
+Data can also be sub-selected based on the available meta-data. For example, if we want to exclude patients that are too young or too old for the question of interest, we can do so easily with:
+```{r}
+
+#siamcat <- select.samples(
+#    siamcat,
+#    filter = 'age',
+#    allowed.set = NULL,
+#    allowed.range = c(20, 90),
+#    verbose = 2
+#)
 
 ```
 
@@ -211,12 +326,26 @@ siamcat <- filter.features(siamcat,
 ```
 
 
+Confounders are checked with the function check.confounders, which produces a plot for each possible confounder in the metadata and diverts the output into a pdf-file.
+
+```{r}
+
+check.confounders(siamcat,
+    fn.plot = 'conf_checkMND.pdf', meta.in = c("mnd", "age", "gender", "BMI", "age_category", "born_method", "feeding_practice"))
+
+```
+
+
 #### Association Testing ####
 
 Associations between microbial species and the label can be tested with the check.associations function. The function computes for each species the significance using a non-parametric Wilcoxon test and different effect sizes for the association (e.g. AUC or fold change).
 
 The function produces a pdf file as output, since the plot is optimized for a landscape DIN-A4 layout, but can also used to plot on an active graphic device, e.g. in RStudio. The resulting plot then looks like that:
 ```{r}
+
+library(progress)
+library(pROC)
+library(RColorBrewer)
 
 siamcat <- check.associations(
     siamcat,
@@ -229,6 +358,203 @@ siamcat <- check.associations(
     panels = c("fc", "prevalence", "auroc"))
 
 ```
+
+
+##### Model Building ####
+
+One strength of SIAMCAT is the versatile but easy-to-use interface for the construction of machine learning models on the basis of microbial species. SIAMCAT contains functions for data normalization, splitting the data into cross-validation folds, training the model, and making predictions based on cross-validation instances and the trained models.
+
+
+#### Data Normalization
+
+Data normalization is performed with the normalize.features function. Here, we use the log.unit method, but several other methods and customization options are available (please check the documentation).
+
+```{r}
+
+siamcat <- normalize.features(
+    siamcat,
+    norm.method = "log.unit",
+    norm.param = list(
+        log.n0 = 1e-06,
+        n.p = 2,
+        norm.margin = 1
+    )
+)
+
+```
+
+
+
+
+#### Perpare Cross-Validation
+
+https://www.youtube.com/watch?v=fSytzGwwBVw
+
+Cross-Validation is basically how we decide which machine learning method would be best for our data set. CV allows us to compare different machine learning methods and get a sense of how well they will work in practice.
+
+Examples of machine learning methods:
+1. Logistic Regression
+2. K-nearest neighbours
+3. Support Vector Machines (SVM) ...etc.
+
+Need to do 2 things with collected data:
+1. Estimate parameters for machine learning methods. (training algorithm)
+2. Evaluate how well the machine learning method works. (testing algorithm)
+
+Terrible approach to use ALL the data to train algorithm bc wouldn't have any data left to test algorithm. - Data separated into blocks, different block combinations used to train model.
+
+
+Preparation of the cross-validation fold is a crucial step in machine learning. SIAMCAT greatly simplifies the set-up of cross-validation schemes, including stratification of samples or keeping samples inseperable based on metadata. For this small example, we choose a twice-repeated 5-fold (no. of blocks) cross-validation scheme. The data-split will be saved in the data_split slot of the siamcat object.
+```{r}
+
+siamcat <-  create.data.split(
+    siamcat,
+    num.folds = 5,
+    num.resample = 2
+)
+
+```
+
+
+
+#### Model Training
+
+The actual model training is performed using the function train.model. Again, multiple options for customization are available, ranging from the machine learning method to the measure for model selection or customizable parameter set for hyperparameter tuning.
+```{r}
+
+library(randomForest)
+
+siamcat <- train.model(
+    siamcat,
+    method = "lasso"
+)
+
+
+#siamcat <- train.model(
+#    siamcat,
+#    method = "enet"
+#)
+
+
+#siamcat <- train.model(
+#    siamcat,
+#    method = "ridge"
+#)
+
+
+#siamcat <- train.model(
+#    siamcat,
+#    method = "lasso_ll"
+#)
+
+
+#siamcat <- train.model(
+#    siamcat,
+#    method = "ridge_ll"
+#)
+
+
+#siamcat <- train.model(
+#    siamcat,
+#    method = "randomForest"
+#)
+
+
+```
+
+The models are saved in the model_list slot of the siamcat object. The model building is performed using the mlr R package. All models can easily be accessed.
+```{r}
+
+# get information about the model type
+model_type(siamcat)
+
+# access the models
+models <- models(siamcat)
+models[[1]]
+
+```
+
+
+#### Make Predicitions
+
+Using the data-split and the models trained in previous step, we can use the function make.predictions in order to apply the models on the test instances in the data-split. The predictions will be saved in the pred_matrix slot of the siamcat object.
+
+```{r}
+
+siamcat <- make.predictions(siamcat)
+pred_matrix <- pred_matrix(siamcat)
+
+head(pred_matrix)
+
+```
+
+
+
+#### Model Evaluation and Interpretation ####
+
+In the final part, we want to find out how well the model performed and which microbial species had been selected in the model. In order to do so, we first calculate how well the predictions fit the real data using the function evaluate.predictions. This function calculates the Area Under the Receiver Operating Characteristic (ROC) Curve (AU-ROC) and the Precision Recall (PR) Curve for each resampled cross-validation run.
+
+```{r}
+
+siamcat <-  evaluate.predictions(siamcat)
+
+```
+
+
+
+#### Evaluation Plot
+
+To plot the results of the evaluation, we can use the function model.evaluation.plot, which produces a pdf-file showing the ROC and PR Curves for the different resamples runs as well as the mean ROC and PR Curve.
+
+```{r}
+
+model.evaluation.plot(siamcat)
+
+```
+
+
+
+#### Interpretation Plot
+
+The final plot produced by SIAMCAT is the model interpretation plot, created by the model.interpretation.plot function. The plot shows for the top selected features the:
+
+  - model weights (and how robust they are, i.e. in what proportion of models have they been incorporated) as a barplot
+
+  - a heatmap with the z-scores or fold changes for the top selected features
+
+  - a boxplot showing the proportions of weight per model which is captured by the top selected features.
+
+Additionally, the distribution of metadata is shown in a heatmap below.
+
+The function again produces a pdf-file optimized for a landscape DIN-A4 plotting region.
+
+```{r}
+
+model.interpretation.plot(
+    siamcat, 
+    fn.plot = 'interpretationMND.pdf',
+    color.scheme = "BrBG",
+    consens.thres = 0.5,
+    heatmap.type = "zscore",
+    limits = c(-3, 3), detect.lim = 1e-06,
+    max.show = 50, prompt=TRUE, verbose = 1)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### Confounder Analysis
 
@@ -280,112 +606,8 @@ disease, age, country, number_reads, median_read_length, BMI, mnd) %>%
 ```
 
 
-First, SIAMCAT needs a feature matrix (can be either a matrix, a data.frame, or a phyloseq-otu_table), which contains values of different features (in rows) for different samples (in columns). For example, the feature matrix included here contains relative abundances for bacterial species calculated with the mOTU profiler for 141 samples:
-
-```{r}
-
-feat.crc.zeller[1:3, 1:3]
-
-# Dimensions of object
-dim(feat.crc.zeller)
-
-```
-
-#### Taxonomin Profiles
-
-Load the taxonomic profiles generated with MetaPhlAn2 via the curatedMetagenomicsData R package.
-
-```{r}
-
-# Get the stool samples
-esl <- curatedMetagenomicData("*metaphlan_bugs_list.stool*", dryrun = FALSE)
-
-# merge
-eset <- mergeData(esl)
-
-# the relab=FALSE is essential as it Absolute Raw Count Data
-pseq = ExpressionSet2phyloseq(eset,relab=FALSE ,simplify = TRUE, phylogenetictree = TRUE)
-orig_pseq <- pseq
-
-y <- "*metaphlan_bugs_list.stool*"
-
-feat <- curatedMetagenomicData(x=orig_pseq, dryrun=FALSE)
-
-feat <- feat[[x]]@assayData$exprs
-
-
-feat <- feat[[y]]@assayData$exprs
 
 
 
-x <- 'NielsenHB_2014.metaphlan_bugs_list.stool'
-feat <- curatedMetagenomicData(x=x, dryrun=FALSE)
-
-feat <- feat[[x]]@assayData$exprs
-
-
-
-
-
-```
-
-
-The MetaPhlAn2 profiles contain information on different taxonomic levels. Therefore, we want to restrict them to species-level profiles. In a second step, we convert them into relative abundances (summing up to 1) instead of using the percentages (summing up to 100) that MetaPhlAn2 outputs.
-```{r}
-
-feat <- feat[grep(x=rownames(feat), pattern='s__'),]
-feat <- feat[grep(x=rownames(feat),pattern='t__', invert = TRUE),]
-feat <- t(t(feat)/100)
- 
-
-```
-
-The feature names are very long and may be a bit un-wieldy for plotting later on, so we shorten them to only the species name:
-```{r}
-
-rownames(feat) <- str_extract(rownames(feat), 's__.*$')
-                              
-```
-
-
-#### Create the SIAMCAT Object
-
-Now, we have everything ready to create a SIAMCAT object which stores the feature matrix, the meta-variables, and the label. Here, the label is created using the information in the metadata.
-```{r}
-
-sc.obj <- siamcat(feat=feat, meta=meta.healthy, label='Group', case='mnd')
-
-sc.obj <- siamcat(meta.healthy, label='Group', case='MEDIUM,HIGH')
-
-```
-
-
-
-## Feature Filtering
-Now, we can filter feature with low overall abundance and prevalence.
-```{r}
-
-sc.obj <- filter.features(sc.obj, cutoff=1e-04, filter.method = 'abundance')
-
-sc.obj <- filter.features(sc.obj, cutoff=0.05,
-                          filter.method='prevalence',
-                          feature.type = 'filtered')
-
-```
-
-
-### Association Plot
-
-The check.assocation function calculates the significance of enrichment and metrics of association (such as generalized fold change and single-feautre AUROC).
-```{r}
-
-sc.obj <- check.associations(sc.obj, detect.lim = 1e-06, 
-                             alpha=0.1, 
-                             max.show = 20,
-                             plot.type = 'quantile.rect',
-                             fn.plot = './association_plot.pdf')
-
-
-```
 
 
