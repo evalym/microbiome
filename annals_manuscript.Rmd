@@ -940,6 +940,7 @@ plot(p3)
 
 
 
+
 abundance(atlas.pseq, "atlas_abundance")
 abundance(pseq.subset, "pseq_abundance")
 
@@ -949,8 +950,42 @@ abundance.bar(atlas.pseq, "atlas_bar")
 
 ```
 
-# Alpha and beta diversity figure
+# Alpha figure
 ```{r}
+
+pseq.meta <- meta(pseq.subset)
+  # generates the diversites
+  tab <- microbiome::alpha(pseq.subset, index = "shannon")
+  
+  # creates Shannon
+  pseq.meta$Shannon <- tab$diversity_shannon
+  mnd <- levels(pseq.meta$mnd) # get the variables
+  # Make a pairwise list that we want to compare.
+  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
+  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
+  
+  # Compare differences in Shannon index between mnd group of the study subjects
+  pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
+  # on to the graphs!!!
+  print("The basic alpha diversity analysis has been completed")
+  # This country versus nationality
+  p1<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
+                  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+  print("First graph has completed")
+  # the number in the palettes must equal the number of groups in bmi.pairs
+  
+  p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red")) 
+  
+  p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
+  
+  print("Second graph has completed")
+  
+  p3 <<-plot_grid(p1,p2, align = "v" , ncol = 1, axis = 'tblr', labels = c('C', 'E'),rel_heights = c(5,5,5))
+  
+print(p3)
+
+ 
+  
 
 # gets the meta data 
   pseq.meta <- meta(atlas.pseq)
@@ -981,49 +1016,205 @@ abundance.bar(atlas.pseq, "atlas_bar")
   p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
   
 
-
-
+p4 <<-plot_grid(p1,p2, align = "v" , ncol = 1, axis = 'tblr', labels = c('D', 'F'),rel_heights = c(5,5,5))
   
-  
-
-  
-# gets the meta data 
-  pseq.meta <- meta(pseq.subset)
-  # generates the diversites
-  tab <- microbiome::alpha(pseq.subset, index = "shannon")
-  
-  # creates Shannon
-  pseq.meta$Shannon <- tab$diversity_shannon
-  mnd <- levels(pseq.meta$mnd) # get the variables
-  # Make a pairwise list that we want to compare.
-  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
-  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
-  
-  # Compare differences in Shannon index between mnd group of the study subjects
-  pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
-  # on to the graphs!!!
-
-  # This country versus nationality
-  p3<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
-                  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
-
-  # the number in the palettes must equal the number of groups in bmi.pairs
-  
-  p4 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red")) 
-  
-  p4 <<- p4 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
+print(p4)
   
 
   
+p6 <<-plot_grid(p3,p4, align = "v" , ncol = 2, rel_heights = c(10,10,10))
+  
+print(p6)
+
+
+```
+
+# Composition and Alpha 
+```{r}
+
+# pseq barplot
+p.new <- aggregate_taxa(pseq.subset, "Phylum")
+
+p.new.rel <- microbiome::transform(p.new, "compositional")
+
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "MND DALYs", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+
+p <- plot.p.new.rel + scale_fill_manual(values=c( "#A5CEE3", "#1F78B4", "#34A02C", "#E3211D", "#FF7E00", "blue", "yellow", "red"))
+
+
+
+
+# atlas barplot
+p.new <- aggregate_taxa(atlas.pseq, "Phylum")
+
+p.new.rel <- microbiome::transform(p.new, "compositional")
+
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "MND DALYs", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+
+p1 <- plot.p.new.rel + scale_fill_brewer(palette = "Paired")
+
+
+
+
+
+  
+p7 <<-plot_grid(p,p1, align = "v" , ncol = 2, labels = c('A', 'B'),rel_heights = c(10,10,10))
+plot(p7)
+
+
+
+p8 <<-plot_grid(p7, p6, align = "v" , nrow = 2, rel_heights = c(10,30,30))
+  
+print(p8)
+
+
+
+```
+
+#Beta
+```{r}
+
+ p <<-  boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
+ # p1 = plot_ordination(pseq.subset, pseq.nmds, type = "taxa", color = "mnd", title = "Taxa by Phylum") # I dont think that we need this any more. 
+  #p1 + facet_wrap(~Phylum, 3)
+  pseq.nmds <- ordinate(pseq.subset, "NMDS", "bray")
+  p2 <- plot_ordination(pseq.subset, pseq.nmds, type = "sample", color = "mnd")
+
+  p3 <- p2 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "NMDS",color = "MND DALYs") + theme(legend.position = "none")
+  #plot(p1 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence"))
+
+  # This add the facets but I do not think we need that any more. 
+  #p3 <- p2 + scale_colour_manual(values = c("yellow", "orange", "red", "grey")) + facet_wrap(~mnd, nrow = 2) + labs(color = "MND Prevalence")
+  save_plot(paste("Beta_diversity_",title_text,"_NMDS.png", sep = "" ), p3)
+    # MDS
+   pseq.mds <<- ordinate(pseq.subset, "MDS", "bray")
+   p4 <- plot_ordination(pseq.subset, pseq.mds, type = "sample", color = "mnd")
+ #plot(p1 + scale_colour_manual(values = c( "yellow", "orange", "red", "grey")) + labs(color = "MND Prevalence MDS"))
+
+    p5 <- p4 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "MDS",color = "MND DALYs") + theme(legend.position = "none")
+    save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p5)
+
+   #PCoA for compositional data with Bray-Curtis distances
+    #   p4 <- plot_landscape(pseq.rel, method = "NMDS", distance = "bray", colour = "mnd", size = 3) 
+    #   p4 <- p4 + scale_color_brewer(palette = "Dark2")+ scale_fill_gradient(low = "#e0ecf4", high = "#6e016b") 
+    #p6 <- plot_landscape(pseq.subset, method = "MDS", distance = "bray", col = "mnd", size = 3) 
+  #   # PCoA for compositional data with Bray-Curtis distances
+   #p6 <- plot_landscape(microbiome::transform(pseq.core, "compositional"),
+    #                    method = "PCoA", distance = "bray") +
+    #     labs(title = paste("PCoA / Compositional / Bray-Curtis"))
+  # 
+    tsne_res <- tsne_phyloseq(pseq.subset, distance='bray', perplexity = 5, verbose=1, rng_seed = 3901)
+    p7 <- plot_tsne_phyloseq(pseq.subset, tsne_res,color = 'mnd')
+    p8 <- p7 + scale_colour_manual(values = wes_palette(glob_theme)) + labs(title = "TSNE",color = "MND DALYs") + theme(legend.position = "bottom")
+    save_plot(paste("Beta_diversity_",title_text,"_MDS.png", sep = "" ), p8)
+  
+
+    p10 <<-plot_grid(title,p3, p5,p8, ncol = 1, labels = c('','A', 'B','C'),rel_heights = c(0.3, 1.5,1.5,2))
+
+    print(p10)
+
+```
+
+# Permanova figure
+```{r}
+
+ p.low <<- subset_samples(pseq.subset, mnd == "LOW")
+  p.low.d <<- divergence(p.low)
+  p.med <<- subset_samples(pseq.subset, mnd == "MEDIUM")
+  p.med.d <<- divergence(p.med)
+  p.high <<- subset_samples(pseq.subset, mnd == "HIGH")
+  p.high.d <<- divergence(p.high)
+  p <<- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
+  
+
+
+
+
+  # Convert to compositional data perma_d(p.low,p.high,"final_highVlow")
+pseqLvH <- merge_phyloseq(p.low,p.high)
+  pseq.rel <- microbiome::transform(pseqLvH, "compositional")
+  otu <- abundances(pseq.rel)
+  meta <- meta(pseq.rel)
+  permanova <- adonis(t(otu) ~ mnd,
+               data = meta, permutations=999, method = "bray")
+ # P-value
+  print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])  
+  dist <- vegdist(t(otu))
+  anov <- anova(betadisper(dist, meta$mnd))
+  summary(anov)
+  tidy(anov)
+  coef <- coefficients(permanova)["mnd1",]
+  top.coef <- coef[rev(order(abs(coef)))[1:20]]
+  par(mar = c(12, 30, 2, 1))
+  #KEEP THIS  TO ENSURE THERE IS NOT A MISTAKE IN THE REORDERING BELOW
+  #temp <- TeX("Top Genus")
+  #png(paste("PERMOVA_",title_text,".png", sep = "" ), width = 450, height = 210,  units     = "mm",
+  #res       = 1500)
+  #barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = temp)
+  #dev.off() 
+  temp <- as.data.frame(top.coef)
+  temp$label <- rownames(temp) 
+  temp$label <- sub("s_*", "", temp[,2])
+  #temp$colour <- ifelse(temp$top.coef < 0, "firebrick1","steelblue")
+  p <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme_classic() + theme(axis.text.y = element_text(face="italic")) 
+
+plot(p, xlim=c(-0.03,0.03))
+  
+  # scale_x_continuous(limits=c(-0.03, 0.03), breaks=c(-0.03, -0.02, -0.01, 0, 0.01, 0.02, 0.03)) 
   
   
   
 
-p.1 <<-plot_grid(title, p1, p3, p2, p4, align = "v" , ncol = 2, labels = c('','A', 'B', 'C', 'D'), rel_widths = 1, rel_heights = 2)
-print(p.1)
+  
+  
+  
+ p.low <<- subset_samples(atlas.pseq, mnd == "LOW")
+  p.low.d <<- divergence(p.low)
+  p.med <<- subset_samples(atlas.pseq, mnd == "MEDIUM")
+  p.med.d <<- divergence(p.med)
+  p.high <<- subset_samples(atlas.pseq, mnd == "HIGH")
+  p.high.d <<- divergence(p.high)
+  p <<- boxplot(list(Low = p.low.d, Medium = p.med.d, High = p.high.d))
   
 
 
+
+
+  # Convert to compositional data perma_d(p.low,p.high,"final_highVlow")
+pseqLvH <- merge_phyloseq(p.low,p.high)
+  pseq.rel <- microbiome::transform(pseqLvH, "compositional")
+  otu <- abundances(pseq.rel)
+  meta <- meta(pseq.rel)
+  permanova <- adonis(t(otu) ~ mnd,
+               data = meta, permutations=999, method = "bray")
+ # P-value
+  print(as.data.frame(permanova$aov.tab)["mnd", "Pr(>F)"])  
+  dist <- vegdist(t(otu))
+  anov <- anova(betadisper(dist, meta$mnd))
+  summary(anov)
+  tidy(anov)
+  coef <- coefficients(permanova)["mnd1",]
+  top.coef <- coef[rev(order(abs(coef)))[1:20]]
+  par(mar = c(12, 30, 2, 1))
+  #KEEP THIS  TO ENSURE THERE IS NOT A MISTAKE IN THE REORDERING BELOW
+  #temp <- TeX("Top Genus")
+  #png(paste("PERMOVA_",title_text,".png", sep = "" ), width = 450, height = 210,  units     = "mm",
+  #res       = 1500)
+  #barplot(sort(top.coef), col = rainbow(20), horiz = T, las = 1, main = temp)
+  #dev.off() 
+  temp <- as.data.frame(top.coef)
+  temp$label <- rownames(temp) 
+  temp$label <- sub("s_*", "", temp[,2])
+  #temp$colour <- ifelse(temp$top.coef < 0, "firebrick1","steelblue")
+  p2 <<- ggplot(temp,aes(reorder(label, top.coef),top.coef,fill = top.coef > 0)) + geom_col(show.legend = FALSE,) + coord_flip() +  xlab('Taxa') + ylab('p value')  + theme_minimal(base_size = 12)  + annotate("text", x = 2.5, y = 0.01, label = "Harmful Taxa") + annotate("text", x = 19, y = -0.01, label = "Beneficial Taxa") + scale_fill_discrete(name = "Taxa") + theme_classic() + theme(axis.text.y = element_text(face="italic")) 
+  
+  
+
+perm <- plot_grid(p,p2, align = "v" , ncol = 1, axis = 'tblr', labels = c('A', 'B'),rel_heights = c(10,10,10))
+  
+print(perm)
+ggsave("permanova_annals.png", device = "png",width = 250, height = 280, units = "mm")
+  
 
 ```
 
@@ -1043,7 +1234,7 @@ meta <- meta(atlas.pseq)
 ```
 
 
-## BETA DIVERSITY
+BETA DIVERSITY
 Beta-diversity: Measures for differences between samples from different groups to identify if there are differences in the overall community composition and structure.
 WE want to: quantify community divergence within a given sample set
 Divergence of a given sample can be quantified as the average dissimilarity of each sample from the group mean; the dissimilarity can be quantified by beta diversity.
