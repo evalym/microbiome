@@ -56,7 +56,7 @@ orig_pseq <- pseq
 #For the MetaPhlAn2 bugs datasets (but not other data types), you gain a lot of taxonomy-aware, ecological analysis and plotting by conversion to a phyloseq class object. curatedMetagenomicData provides the ExpressionSet2phyloseq() function to make this easy:
 data(atlas1006)
 atlas.pseq <- baseline(atlas1006) # only uses the baseline samples. This is n=1006
-atlas.pseq <- subset_samples(atlas.pseq, !is.na(mnd))
+atlas.pseq <- subset_samples(atlas.pseq, !is.na(mnd), !is.na(nationality) )
 
 ```
 
@@ -342,7 +342,7 @@ alpha_d <- function(pseq.subset,title_text) {
   print("First graph has completed")
   # the number in the palettes must equal the number of groups in bmi.pairs
   
-  p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = wes_palette(glob_theme)) 
+  p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red")) 
   
   p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
   
@@ -878,6 +878,8 @@ correlation.table <- associate(x, y, method = "spearman", mode = "table", p.adj.
 kable(head(correlation.table))
 ```
 
+#Abundance plots
+
 ```{r Abundance}
 
 abundance <- function(atlas.pseq, title_text){
@@ -901,7 +903,7 @@ abundance.bar <- function(atlas.pseq, title_text){
 
 p.new.rel <- microbiome::transform(p.new, "compositional")
 
-plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = " ", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "MND DALYs", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
 
 p <- plot.p.new.rel + scale_fill_brewer(palette = "Paired")
 
@@ -909,11 +911,118 @@ p <- plot.p.new.rel + scale_fill_brewer(palette = "Paired")
 }
 
 
+# atlas barplot
+p.new <- aggregate_taxa(atlas.pseq, "Phylum")
+
+p.new.rel <- microbiome::transform(p.new, "compositional")
+
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "MND DALYs", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+
+p <- plot.p.new.rel + scale_fill_brewer(palette = "Paired")
+ggsave("atlas_bar.png")
+
+
+
+# pseq barplot
+p.new <- aggregate_taxa(pseq.subset, "Phylum")
+
+p.new.rel <- microbiome::transform(p.new, "compositional")
+
+plot.p.new.rel <- plot_composition(p.new.rel, average_by = "mnd", x.label = "MND DALYs", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) + theme_classic()
+
+p1 <- plot.p.new.rel + scale_fill_manual(values=c( "#A5CEE3", "#1F78B4", "#34A02C", "#E3211D", "#FF7E00", "blue", "yellow", "red"))
+ggsave("pseq_bar.png")
+
+  
+p3 <<-plot_grid(title,p,p1, align = "v" , ncol = 1, labels = c('','A', 'B'),rel_heights = c(0.1, 1,1.2))
+plot(p3)
+
+
+
+
 abundance(atlas.pseq, "atlas_abundance")
 abundance(pseq.subset, "pseq_abundance")
 
 abundance.bar(atlas.pseq, "atlas_bar")
-abundance.bar(pseq.subset, "pseq_bar")
+#abundance.bar.pseq(pseq.subset, "pseq_bar")
+
+
+```
+
+# Alpha and beta diversity figure
+```{r}
+
+# gets the meta data 
+  pseq.meta <- meta(atlas.pseq)
+  # generates the diversites
+  tab <- microbiome::alpha(atlas.pseq, index = "shannon")
+  
+
+  
+  # creates Shannon
+  pseq.meta$Shannon <- tab$diversity_shannon
+  mnd <- levels(pseq.meta$mnd) # get the variables
+  # Make a pairwise list that we want to compare.
+  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
+  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
+  
+  # Compare differences in Shannon index between mnd group of the study subjects
+  pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
+  # on to the graphs!!!
+
+  # This country versus nationality
+  p1<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
+                  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+
+  # the number in the palettes must equal the number of groups in bmi.pairs
+  
+  p2 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red")) 
+  
+  p2 <<- p2 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
+  
+
+
+
+  
+  
+
+  
+# gets the meta data 
+  pseq.meta <- meta(pseq.subset)
+  # generates the diversites
+  tab <- microbiome::alpha(pseq.subset, index = "shannon")
+  
+  # creates Shannon
+  pseq.meta$Shannon <- tab$diversity_shannon
+  mnd <- levels(pseq.meta$mnd) # get the variables
+  # Make a pairwise list that we want to compare.
+  mnd.pairs <- combn(seq_along(mnd), 2, simplify = FALSE, FUN = function(i)mnd[i])
+  mnd.pairs <- list( c("LOW","MEDIUM"), c("HIGH","LOW"), c("MEDIUM","HIGH"))
+  
+  # Compare differences in Shannon index between mnd group of the study subjects
+  pseq.meta$mnd <- factor(pseq.meta$mnd, levels = c("LOW","MEDIUM","HIGH"),  exclude = "NA")
+  # on to the graphs!!!
+
+  # This country versus nationality
+  p3<-   ggviolin(pseq.meta, x = "nationality", y = "Shannon",
+                  add = "boxplot", fill = "nationality", palette = "paired") + theme(axis.text.x = element_text(angle = 90)) + theme(legend.position="none") + xlab("")
+
+  # the number in the palettes must equal the number of groups in bmi.pairs
+  
+  p4 <<- ggviolin(data=subset(pseq.meta, !is.na(mnd)), x = "mnd", y = "Shannon", add = "boxplot", fill = "mnd", na.rm = TRUE, palette = c("yellow", "orange", "red")) 
+  
+  p4 <<- p4 + stat_compare_means(comparisons = mnd.pairs) + xlab("MND DALYs") + theme(legend.position="none")
+  
+
+  
+  
+  
+  
+
+p.1 <<-plot_grid(title, p1, p3, p2, p4, align = "v" , ncol = 2, labels = c('','A', 'B', 'C', 'D'), rel_widths = 1, rel_heights = 2)
+print(p.1)
+  
+
 
 
 ```
@@ -947,163 +1056,12 @@ Divergence of a given sample set can be quantified as the average dissimilarity 
 
 
 
-NOTHING BELOW THIS WORKS!!!!!!!!
 
 
 
 
 
 
-## MICROBIOME COMPOSITION
-
-```{r Phylum #}
-
-# Show available ranks in the dataset
-rank_names(pseq)
-
-# Create table, number of features for each phyla
-table(tax_table(pseq)[, "Phylum"], exclude = NULL)
-
-```
-
-This shows a few phyla for which only one feature was observed. Those may be worth filtering.
-
-
-guide_italics
-ggtitle("Relative abundance") +  
-```{r}
-
-clos.ph <- aggregate_taxa(clostridium, "Phylum")
-
-clos.ph.rel <- microbiome::transform(clos.ph, "compositional")
-
-plot.comp.rel <- plot_composition(clos.ph.rel, x.label = "sample") + 
-  theme(legend.position = "bottom", ) + theme_bw() + 
-  theme(axis.text.x=element_blank()) + 
-  theme(legend.title = element_text(size=18), legend.text = element_text( face="italic")) + scale_fill_brewer(palette = "Paired") + guides(fill=guide_legend(title="Phylum")) 
-
-print(plot.comp.rel)
-
-ggsave("phylum_relative_abundance_clos.png")
-
-plot.comp.rel + scale_fill_brewer(palette = "Paired") + theme(legend.position="none") + guide_italics
-ggsave("phylum_relative_abundance_clos2.png")       
-
-
-
-```
-
-
-
-
-```{r CLostridium Bar Plot}
-
-clos <- aggregate_taxa(clostridium, "Phylum")
-
-pseq.cl.rel <- microbiome::transform(clos, "compositional")
-
-plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot") + guides(fill=guide_legend(title="Phylum")) + theme(legend.text = element_text( face="italic")) 
-
-plot.cl.rel + scale_fill_brewer(palette = "Paired")
-ggsave("cl_abundance_bar.png")
-
-```
-
-```{r Clostridium genus bar plots}
-
-pseq.cl.rel <- microbiome::transform(clostridium, "compositional")
-
-plot.cl.rel <- plot_composition(pseq.cl.rel, average_by = "mnd", x.label = "sample", plot.type = "barplot")
-
-plot.cl.rel + scale_fill_viridis(discrete = TRUE, option = "A") 
-
-```
-
-
-
-```{r clostridium heatmap}
-
-pseq.c.ph <- aggregate_taxa(clostridium, "Phylum")
-
-pseq.c.ph.rel <- microbiome::transform(pseq.c.ph, "compositional")
-
-plot.c.comp.rel <- plot_composition(pseq.c.ph.rel, x.label = "sample", plot.type = "heatmap")
-
-p <- plot.c.comp.rel + coord_flip()
-p + theme(axis.text.x=element_blank()) + labs(y = "Sample")
-ggsave("clos_histogram.png")
-
-```
-
-
-
-
-
-
-## Community composition plotting
-Classic bar plots of bacterial phyla present per sample can be useful for communicating "high level" results. These are relatively easy to interpret when major shifts in microbial communities are present, such as in this study where antibiotics are used However, they are not effective at detecting subtle shifts in communities or taxa and do not convey any statistical significance and can be subjectively interpreted. Interpretation of these plots should always be subject to subsequent statistical analysis.
-
-```{r}
-
-clos <- aggregate_taxa(clostridium, "Phylum")
-
-# agglomerate at phylum level
-clos_phy <- tax_glom(clos, taxrank = "Phylum")                  
-
-# Transform to rel. abundance (or use ps0.ra)
-clos_phyl <- transform_sample_counts(clos_phy, function(x) {x/sum(x)}) 
-
-# Melt to long format for easy ggploting
-clos_phylum <- psmelt(clos_phyl)
-
-# Plot - Phylum
-p.ra.phylum <- ggplot(clos_phylum, aes(x = sample, y = Abundance, fill = Phylum)) + 
-  geom_bar(stat = "identity", width = 1) +
-  facet_wrap(~mnd, scales = "free_x", nrow = 4, ncol = 7) +
-  theme(axis.text.x = element_blank()) +
-  theme(axis.title.x = element_blank()) +
-  labs(title = "Abundant Phylum of Clostridium(> 1%)")
-
-p <- p.ra.phylum + scale_fill_viridis(discrete = TRUE, option = "A")
-plot(p)
-ggsave("phylum_abun_mnd_clos.png")
-
-```
-
-
-
-```{r}
-
-get_taxa_unique(pseq, "Phylum") 
-
-```
-
-
-```{r}
-
-get_taxa_unique(pseq, "Genus") 
-
-```
-
-```{r}
-
-get_taxa_unique(clostridium, "Genus") 
-
-```
-
-
-```{r}
-
-df <- psmelt(pseq)
-kable(head(df))
-
-```
-
-```{r}
-
-head(abundances(pseq)["Faecalibacterium prausnitzii et rel.",])
-
-```
 
 
 
